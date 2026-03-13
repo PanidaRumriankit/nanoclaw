@@ -37,7 +37,7 @@ jobs:
           severity: 'CRITICAL,HIGH'
       
       - name: Run Trivy filesystem scan
-        uses: aquasecurity/trivy-action@v0.69.3
+        uses: aquasecurity/trivy-action@v0.16.3
         with:
           scan-type: 'filesystem'
           scan-ref: './'
