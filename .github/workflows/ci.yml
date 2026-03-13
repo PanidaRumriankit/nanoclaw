@@ -35,3 +35,14 @@ jobs:
           exit-code: '1'
           ignore-unfixed: true
           severity: 'CRITICAL,HIGH'
+      
+      - name: Run Trivy filesystem scan
+        uses: aquasecurity/trivy-action@v0.69.3
+        with:
+          scan-type: 'filesystem'
+          scan-ref: './'
+          format: 'table'
+          exit-code: '1'
+          ignore-unfixed: true
+          severity: 'CRITICAL,HIGH'
+          vuln-type: 'os,library'
