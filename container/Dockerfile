@@ -26,6 +26,8 @@ RUN apt-get update && apt-get install -y \
     git \
     && rm -rf /var/lib/apt/lists/*
 
+RUN curl -sfL https://raw.githubusercontent.com/aquasecurity/trivy/main/contrib/install.sh | sh -s -- -b /usr/local/bin
+
 # Set Chromium path for agent-browser
 ENV AGENT_BROWSER_EXECUTABLE_PATH=/usr/bin/chromium
 ENV PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH=/usr/bin/chromium
@@ -37,13 +39,13 @@ RUN npm install -g agent-browser @anthropic-ai/claude-code
 WORKDIR /app
 
 # Copy package files first for better caching
-COPY agent-runner/package*.json ./
+COPY container/agent-runner/package*.json ./
 
 # Install dependencies
 RUN npm install
 
 # Copy source code
-COPY agent-runner/ ./
+COPY container/agent-runner/ ./
 
 # Build TypeScript
 RUN npm run build
