@@ -35,6 +35,7 @@ jobs:
           exit-code: '1'
           ignore-unfixed: true
           severity: 'CRITICAL,HIGH'
+          vuln-type: 'os'
           trivyignores: '.trivyignore'
       
       - name: Run Trivy filesystem scan
@@ -46,5 +47,5 @@ jobs:
           exit-code: '1'
           ignore-unfixed: true
           severity: 'CRITICAL,HIGH'
-          vuln-type: 'os,library'
+          vuln-type: 'library'
           trivyignores: '.trivyignore'
