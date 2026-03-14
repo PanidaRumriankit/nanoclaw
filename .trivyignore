@@ -1,0 +1,2 @@
+# False positive - Windows-only vulnerability, not applicable to Linux container
+CVE-2025-15558

@@ -23,3 +23,29 @@ jobs:
 
       - name: Tests
         run: npx vitest run
+
+      - name: Build Docker image
+        run: docker build -t nanoclaw:latest -f container/Dockerfile .
+      
+      - name: Run Trivy vulnerability
+        uses: aquasecurity/trivy-action@0.35.0
+        with:
+          image-ref: 'nanoclaw:latest'
+          format: 'table'
+          exit-code: '1'
+          ignore-unfixed: true
+          severity: 'CRITICAL,HIGH'
+          vuln-type: 'os'
+          trivyignores: '.trivyignore'
+      
+      - name: Run Trivy filesystem scan
+        uses: aquasecurity/trivy-action@0.35.0
+        with:
+          scan-type: 'filesystem'
+          scan-ref: './'
+          format: 'table'
+          exit-code: '1'
+          ignore-unfixed: true
+          severity: 'CRITICAL,HIGH'
+          vuln-type: 'library'
+          trivyignores: '.trivyignore'
