@@ -46,6 +46,7 @@
   "overrides": {
     "glob": "^10.5.0",
     "minimatch": "^9.0.7",
+    "music-metadata": "^11.12.3",
     "tar": "^7.5.11"
   }
 }
