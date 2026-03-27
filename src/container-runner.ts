@@ -7,6 +7,10 @@ import fs from 'fs';
 import path from 'path';
 
 import {
+  ANTHROPIC_DEFAULT_HAIKU_MODEL,
+  ANTHROPIC_DEFAULT_OPUS_MODEL,
+  ANTHROPIC_DEFAULT_SONNET_MODEL,
+  CLAUDE_CODE_MODEL,
   CONTAINER_IMAGE,
   CONTAINER_MAX_OUTPUT_SIZE,
   CONTAINER_TIMEOUT,
@@ -18,6 +22,7 @@ import {
 } from './config.js';
 import { resolveGroupFolderPath, resolveGroupIpcPath } from './group-folder.js';
 import { logger } from './logger.js';
+import { markContainerFinished, markContainerStarted } from './metrics.js';
 import {
   CONTAINER_HOST_GATEWAY,
   CONTAINER_RUNTIME_BIN,
@@ -209,6 +214,15 @@ function buildVolumeMounts(
     mounts.push(...validatedMounts);
   }
 
+  // Persistent /tmp mount for outputs and reports
+  const tmpDir = path.join(projectRoot, 'data', 'tmp');
+  fs.mkdirSync(tmpDir, { recursive: true });
+  mounts.push({
+    hostPath: tmpDir,
+    containerPath: '/tmp',
+    readonly: false,
+  });
+
   return mounts;
 }
 
@@ -249,6 +263,29 @@ function buildContainerArgs(
   if (hostUid != null && hostUid !== 0 && hostUid !== 1000) {
     args.push('--user', `${hostUid}:${hostGid}`);
     args.push('-e', 'HOME=/home/node');
+  }
+
+  // Pass custom model name if specified (useful for third-party providers)
+  if (CLAUDE_CODE_MODEL) {
+    args.push('-e', `CLAUDE_CODE_MODEL=${CLAUDE_CODE_MODEL}`);
+  }
+  if (ANTHROPIC_DEFAULT_HAIKU_MODEL) {
+    args.push(
+      '-e',
+      `ANTHROPIC_DEFAULT_HAIKU_MODEL=${ANTHROPIC_DEFAULT_HAIKU_MODEL}`,
+    );
+  }
+  if (ANTHROPIC_DEFAULT_SONNET_MODEL) {
+    args.push(
+      '-e',
+      `ANTHROPIC_DEFAULT_SONNET_MODEL=${ANTHROPIC_DEFAULT_SONNET_MODEL}`,
+    );
+  }
+  if (ANTHROPIC_DEFAULT_OPUS_MODEL) {
+    args.push(
+      '-e',
+      `ANTHROPIC_DEFAULT_OPUS_MODEL=${ANTHROPIC_DEFAULT_OPUS_MODEL}`,
+    );
   }
 
   for (const mount of mounts) {
@@ -310,6 +347,14 @@ export async function runContainerAgent(
     const container = spawn(CONTAINER_RUNTIME_BIN, containerArgs, {
       stdio: ['pipe', 'pipe', 'pipe'],
     });
+    let containerActive = true;
+    const finishContainer = () => {
+      if (!containerActive) return;
+      containerActive = false;
+      markContainerFinished();
+    };
+
+    markContainerStarted();
 
     onProcess(container, containerName);
 
@@ -433,6 +478,7 @@ export async function runContainerAgent(
     };
 
     container.on('close', (code) => {
+      finishContainer();
       clearTimeout(timeout);
       const duration = Date.now() - startTime;
 
@@ -628,6 +674,7 @@ export async function runContainerAgent(
     });
 
     container.on('error', (err) => {
+      finishContainer();
       clearTimeout(timeout);
       logger.error(
         { group: group.name, containerName, error: err },

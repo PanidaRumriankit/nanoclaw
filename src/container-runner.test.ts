@@ -8,6 +8,10 @@ const OUTPUT_END_MARKER = '---NANOCLAW_OUTPUT_END---';
 
 // Mock config
 vi.mock('./config.js', () => ({
+  ANTHROPIC_DEFAULT_HAIKU_MODEL: undefined,
+  ANTHROPIC_DEFAULT_OPUS_MODEL: undefined,
+  ANTHROPIC_DEFAULT_SONNET_MODEL: undefined,
+  CLAUDE_CODE_MODEL: undefined,
   CONTAINER_IMAGE: 'nanoclaw-agent:latest',
   CONTAINER_MAX_OUTPUT_SIZE: 10485760,
   CONTAINER_TIMEOUT: 1800000, // 30min
@@ -87,6 +91,7 @@ vi.mock('child_process', async () => {
 });
 
 import { runContainerAgent, ContainerOutput } from './container-runner.js';
+import { renderMetrics, resetMetricsForTests } from './metrics.js';
 import type { RegisteredGroup } from './types.js';
 
 const testGroup: RegisteredGroup = {
@@ -115,6 +120,7 @@ describe('container-runner timeout behavior', () => {
   beforeEach(() => {
     vi.useFakeTimers();
     fakeProc = createFakeProcess();
+    resetMetricsForTests();
   });
 
   afterEach(() => {
@@ -206,5 +212,30 @@ describe('container-runner timeout behavior', () => {
     const result = await resultPromise;
     expect(result.status).toBe('success');
     expect(result.newSessionId).toBe('session-456');
+  });
+
+  it('tracks active container count while a container is running', async () => {
+    const onOutput = vi.fn(async () => {});
+    const resultPromise = runContainerAgent(
+      testGroup,
+      testInput,
+      () => {},
+      onOutput,
+    );
+
+    expect(await renderMetrics()).toContain('nanoclaw_active_containers 1');
+
+    emitOutputMarker(fakeProc, {
+      status: 'success',
+      result: 'Done',
+      newSessionId: 'session-789',
+    });
+    await vi.advanceTimersByTimeAsync(10);
+
+    fakeProc.emit('close', 0);
+    await vi.advanceTimersByTimeAsync(10);
+    await resultPromise;
+
+    expect(await renderMetrics()).toContain('nanoclaw_active_containers 0');
   });
 });
