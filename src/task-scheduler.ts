@@ -19,6 +19,7 @@ import {
 import { GroupQueue } from './group-queue.js';
 import { resolveGroupFolderPath } from './group-folder.js';
 import { logger } from './logger.js';
+import { observeAgentRun } from './metrics.js';
 import { RegisteredGroup, ScheduledTask } from './types.js';
 
 /**
@@ -148,6 +149,8 @@ async function runTask(
 
   let result: string | null = null;
   let error: string | null = null;
+  let agentStartedAt: number | null = null;
+  let agentStatus: 'success' | 'error' = 'success';
 
   // For group context mode, use the group's current session
   const sessions = deps.getSessions();
@@ -169,6 +172,7 @@ async function runTask(
   };
 
   try {
+    agentStartedAt = Date.now();
     const output = await runContainerAgent(
       group,
       {
@@ -194,6 +198,7 @@ async function runTask(
           scheduleClose(); // Close promptly even when result is null (e.g. IPC-only tasks)
         }
         if (streamedOutput.status === 'error') {
+          agentStatus = 'error';
           error = streamedOutput.error || 'Unknown error';
         }
       },
@@ -202,6 +207,7 @@ async function runTask(
     if (closeTimer) clearTimeout(closeTimer);
 
     if (output.status === 'error') {
+      agentStatus = 'error';
       error = output.error || 'Unknown error';
     } else if (output.result) {
       // Result was already forwarded to the user via the streaming callback above
@@ -214,8 +220,17 @@ async function runTask(
     );
   } catch (err) {
     if (closeTimer) clearTimeout(closeTimer);
+    agentStatus = 'error';
     error = err instanceof Error ? err.message : String(err);
     logger.error({ taskId: task.id, error }, 'Task failed');
+  }
+
+  if (agentStartedAt !== null) {
+    observeAgentRun(
+      'scheduled_task',
+      agentStatus,
+      Date.now() - agentStartedAt,
+    );
   }
 
   const durationMs = Date.now() - startTime;

@@ -18,6 +18,7 @@ import {
 } from './config.js';
 import { resolveGroupFolderPath, resolveGroupIpcPath } from './group-folder.js';
 import { logger } from './logger.js';
+import { markContainerFinished, markContainerStarted } from './metrics.js';
 import {
   CONTAINER_HOST_GATEWAY,
   CONTAINER_RUNTIME_BIN,
@@ -310,6 +311,14 @@ export async function runContainerAgent(
     const container = spawn(CONTAINER_RUNTIME_BIN, containerArgs, {
       stdio: ['pipe', 'pipe', 'pipe'],
     });
+    let containerActive = true;
+    const finishContainer = () => {
+      if (!containerActive) return;
+      containerActive = false;
+      markContainerFinished();
+    };
+
+    markContainerStarted();
 
     onProcess(container, containerName);
 
@@ -433,6 +442,7 @@ export async function runContainerAgent(
     };
 
     container.on('close', (code) => {
+      finishContainer();
       clearTimeout(timeout);
       const duration = Date.now() - startTime;
 
@@ -628,6 +638,7 @@ export async function runContainerAgent(
     });
 
     container.on('error', (err) => {
+      finishContainer();
       clearTimeout(timeout);
       logger.error(
         { group: group.name, containerName, error: err },
