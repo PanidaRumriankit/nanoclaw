@@ -9,6 +9,10 @@ import { readEnvFile } from './env.js';
 const envConfig = readEnvFile([
   'ASSISTANT_NAME',
   'ASSISTANT_HAS_OWN_NUMBER',
+  'CLAUDE_CODE_MODEL',
+  'ANTHROPIC_DEFAULT_HAIKU_MODEL',
+  'ANTHROPIC_DEFAULT_SONNET_MODEL',
+  'ANTHROPIC_DEFAULT_OPUS_MODEL',
   'PROMETHEUS_HOST',
   'PROMETHEUS_PORT',
 ]);
@@ -51,6 +55,17 @@ export const DATA_DIR = path.resolve(PROJECT_ROOT, 'data');
 
 export const CONTAINER_IMAGE =
   process.env.CONTAINER_IMAGE || 'nanoclaw-agent:latest';
+export const CLAUDE_CODE_MODEL =
+  process.env.CLAUDE_CODE_MODEL || envConfig.CLAUDE_CODE_MODEL;
+export const ANTHROPIC_DEFAULT_HAIKU_MODEL =
+  process.env.ANTHROPIC_DEFAULT_HAIKU_MODEL ||
+  envConfig.ANTHROPIC_DEFAULT_HAIKU_MODEL;
+export const ANTHROPIC_DEFAULT_SONNET_MODEL =
+  process.env.ANTHROPIC_DEFAULT_SONNET_MODEL ||
+  envConfig.ANTHROPIC_DEFAULT_SONNET_MODEL;
+export const ANTHROPIC_DEFAULT_OPUS_MODEL =
+  process.env.ANTHROPIC_DEFAULT_OPUS_MODEL ||
+  envConfig.ANTHROPIC_DEFAULT_OPUS_MODEL;
 export const CONTAINER_TIMEOUT = parseInt(
   process.env.CONTAINER_TIMEOUT || '1800000',
   10,

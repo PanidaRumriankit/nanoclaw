@@ -57,7 +57,7 @@ RUN mkdir -p /workspace/group /workspace/global /workspace/extra /workspace/ipc/
 # Container input (prompt, group info) is passed via stdin JSON.
 # Credentials are injected by the host's credential proxy — never passed here.
 # Follow-up messages arrive via IPC files in /workspace/ipc/input/
-RUN printf '#!/bin/bash\nset -e\ncd /app && npx tsc --outDir /tmp/dist 2>&1 >&2\nln -s /app/node_modules /tmp/dist/node_modules\nchmod -R a-w /tmp/dist\ncat > /tmp/input.json\nnode /tmp/dist/index.js < /tmp/input.json\n' > /app/entrypoint.sh && chmod +x /app/entrypoint.sh
+RUN printf '#!/bin/bash\nset -e\nRUN_DIR=$(mktemp -d /tmp/nanoclaw-run-XXXXXX)\ntrap '\''rm -rf "$RUN_DIR"'\'' EXIT\ncd /app && npx tsc --outDir "$RUN_DIR/dist" 2>&1 >&2\nln -s /app/node_modules "$RUN_DIR/dist/node_modules"\nchmod -R a-w "$RUN_DIR/dist"\ncat > "$RUN_DIR/input.json"\nnode "$RUN_DIR/dist/index.js" < "$RUN_DIR/input.json"\n' > /app/entrypoint.sh && chmod +x /app/entrypoint.sh
 
 # Set ownership to node user (non-root) for writable directories
 RUN chown -R node:node /workspace && chmod 777 /home/node

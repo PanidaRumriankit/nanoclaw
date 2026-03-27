@@ -226,11 +226,7 @@ async function runTask(
   }
 
   if (agentStartedAt !== null) {
-    observeAgentRun(
-      'scheduled_task',
-      agentStatus,
-      Date.now() - agentStartedAt,
-    );
+    observeAgentRun('scheduled_task', agentStatus, Date.now() - agentStartedAt);
   }
 
   const durationMs = Date.now() - startTime;

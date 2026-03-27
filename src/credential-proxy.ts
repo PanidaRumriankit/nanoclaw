@@ -79,11 +79,19 @@ export function startCredentialProxy(
           }
         }
 
+        const requestUrl = new URL(req.url || '/', 'http://nanoclaw.local');
+        const upstreamBasePath =
+          upstreamUrl.pathname === '/'
+            ? ''
+            : upstreamUrl.pathname.replace(/\/$/, '');
+        const upstreamPath = `${upstreamBasePath}${requestUrl.pathname}${requestUrl.search}`;
         const upstream = makeRequest(
           {
             hostname: upstreamUrl.hostname,
             port: upstreamUrl.port || (isHttps ? 443 : 80),
-            path: req.url,
+            path: upstreamPath.startsWith('/')
+              ? upstreamPath
+              : `/${upstreamPath}`,
             method: req.method,
             headers,
           } as RequestOptions,
