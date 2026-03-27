@@ -58,6 +58,7 @@ import { startSchedulerLoop } from './task-scheduler.js';
 import { Channel, NewMessage, RegisteredGroup } from './types.js';
 import { logger } from './logger.js';
 import {
+  installNetworkUsageTracking,
   observeAgentRun,
   recordStoredMessage,
   setRegisteredGroupCount,
@@ -486,6 +487,7 @@ function ensureContainerSystemRunning(): void {
 }
 
 async function main(): Promise<void> {
+  installNetworkUsageTracking();
   ensureContainerSystemRunning();
   initDatabase();
   logger.info('Database initialized');

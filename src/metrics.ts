@@ -1,4 +1,5 @@
 import { createServer, Server } from 'http';
+import net from 'net';
 
 import {
   collectDefaultMetrics,
@@ -54,8 +55,39 @@ const activeContainersGauge = new Gauge({
   registers: [registry],
 });
 
+const networkConnectionsTotal = new Counter<'remote_ip'>({
+  name: 'nanoclaw_network_connections_total',
+  help: 'Total outbound network connections opened by the core process.',
+  labelNames: ['remote_ip'],
+  registers: [registry],
+});
+
+const networkBytesReadTotal = new Counter<'remote_ip'>({
+  name: 'nanoclaw_network_bytes_read_total',
+  help: 'Total bytes read from each remote IP by the core process.',
+  labelNames: ['remote_ip'],
+  registers: [registry],
+});
+
+const networkBytesWrittenTotal = new Counter<'remote_ip'>({
+  name: 'nanoclaw_network_bytes_written_total',
+  help: 'Total bytes written to each remote IP by the core process.',
+  labelNames: ['remote_ip'],
+  registers: [registry],
+});
+
+const networkActiveConnectionsGauge = new Gauge<'remote_ip'>({
+  name: 'nanoclaw_network_active_connections',
+  help: 'Current outbound network connections by remote IP.',
+  labelNames: ['remote_ip'],
+  registers: [registry],
+});
+
 registeredGroupsGauge.set(0);
 activeContainersGauge.set(0);
+
+let networkUsageTrackingInstalled = false;
+const trackedSockets = new WeakSet<net.Socket>();
 
 export function recordStoredMessage(): void {
   messagesTotal.inc();
@@ -93,6 +125,133 @@ export function resetMetricsForTests(): void {
   activeContainers = 0;
   registeredGroupsGauge.set(0);
   activeContainersGauge.set(0);
+}
+
+function normalizeRemoteIp(address?: string | null): string | null {
+  if (!address) return null;
+  if (address.startsWith('::ffff:')) {
+    return address.slice('::ffff:'.length);
+  }
+  return address;
+}
+
+function trackSocket(socket: net.Socket): void {
+  if (trackedSockets.has(socket)) return;
+  trackedSockets.add(socket);
+
+  let remoteIp: string | null = null;
+  let pendingReadBytes = 0;
+  let pendingWrittenBytes = 0;
+  let lastBytesWritten = 0;
+  let activeCounted = false;
+  let finalized = false;
+
+  const flushReadBytes = (size: number) => {
+    if (size <= 0) return;
+    if (remoteIp) {
+      networkBytesReadTotal.inc({ remote_ip: remoteIp }, size);
+    } else {
+      pendingReadBytes += size;
+    }
+  };
+
+  const flushWrittenBytes = (size: number) => {
+    if (size <= 0) return;
+    if (remoteIp) {
+      networkBytesWrittenTotal.inc({ remote_ip: remoteIp }, size);
+    } else {
+      pendingWrittenBytes += size;
+    }
+  };
+
+  const establishRemoteIp = () => {
+    if (remoteIp) return;
+    remoteIp = normalizeRemoteIp(socket.remoteAddress);
+    if (!remoteIp) return;
+
+    networkConnectionsTotal.inc({ remote_ip: remoteIp });
+    networkActiveConnectionsGauge.inc({ remote_ip: remoteIp });
+    activeCounted = true;
+
+    if (pendingReadBytes > 0) {
+      networkBytesReadTotal.inc({ remote_ip: remoteIp }, pendingReadBytes);
+      pendingReadBytes = 0;
+    }
+    if (pendingWrittenBytes > 0) {
+      networkBytesWrittenTotal.inc(
+        { remote_ip: remoteIp },
+        pendingWrittenBytes,
+      );
+      pendingWrittenBytes = 0;
+    }
+  };
+
+  const flushSocketWrittenBytes = () => {
+    const delta = socket.bytesWritten - lastBytesWritten;
+    if (delta <= 0) return;
+    lastBytesWritten = socket.bytesWritten;
+    flushWrittenBytes(delta);
+  };
+
+  const finishConnection = () => {
+    if (finalized) return;
+    finalized = true;
+    flushSocketWrittenBytes();
+    establishRemoteIp();
+    if (remoteIp && activeCounted) {
+      networkActiveConnectionsGauge.dec({ remote_ip: remoteIp });
+    }
+  };
+
+  socket.once('connect', establishRemoteIp);
+  socket.once('close', finishConnection);
+  socket.once('error', finishConnection);
+  socket.on('data', (chunk) => {
+    flushReadBytes(chunk.length);
+  });
+
+  const originalWrite = socket.write;
+  socket.write = function patchedWrite(
+    this: net.Socket,
+    ...args: unknown[]
+  ): boolean {
+    const result = (originalWrite as (...callArgs: unknown[]) => boolean).apply(
+      this,
+      args,
+    );
+    setImmediate(flushSocketWrittenBytes);
+    return result;
+  };
+
+  const originalEnd = socket.end;
+  socket.end = function patchedEnd(
+    this: net.Socket,
+    ...args: unknown[]
+  ): net.Socket {
+    const result = (originalEnd as (...callArgs: unknown[]) => net.Socket).apply(
+      this,
+      args,
+    );
+    setImmediate(flushSocketWrittenBytes);
+    return result;
+  };
+}
+
+export function installNetworkUsageTracking(): void {
+  if (networkUsageTrackingInstalled) return;
+  networkUsageTrackingInstalled = true;
+
+  const originalConnect = net.Socket.prototype.connect;
+  net.Socket.prototype.connect = function patchedConnect(
+    this: net.Socket,
+    ...args: unknown[]
+  ) {
+    trackSocket(this);
+    return (originalConnect as (...callArgs: unknown[]) => net.Socket).apply(
+      this,
+      args,
+    );
+  };
 }
 
 export function startMetricsServer(
