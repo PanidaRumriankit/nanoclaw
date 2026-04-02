@@ -6,7 +6,16 @@ import { readEnvFile } from './env.js';
 // Read config values from .env (falls back to process.env).
 // Secrets (API keys, tokens) are NOT read here — they are loaded only
 // by the credential proxy (credential-proxy.ts), never exposed to containers.
-const envConfig = readEnvFile(['ASSISTANT_NAME', 'ASSISTANT_HAS_OWN_NUMBER']);
+const envConfig = readEnvFile([
+  'ASSISTANT_NAME',
+  'ASSISTANT_HAS_OWN_NUMBER',
+  'CLAUDE_CODE_MODEL',
+  'ANTHROPIC_DEFAULT_HAIKU_MODEL',
+  'ANTHROPIC_DEFAULT_SONNET_MODEL',
+  'ANTHROPIC_DEFAULT_OPUS_MODEL',
+  'PROMETHEUS_HOST',
+  'PROMETHEUS_PORT',
+]);
 
 export const ASSISTANT_NAME =
   process.env.ASSISTANT_NAME || envConfig.ASSISTANT_NAME || 'Andy';
@@ -15,6 +24,13 @@ export const ASSISTANT_HAS_OWN_NUMBER =
     envConfig.ASSISTANT_HAS_OWN_NUMBER) === 'true';
 export const POLL_INTERVAL = 2000;
 export const SCHEDULER_POLL_INTERVAL = 60000;
+
+function parseOptionalPositiveInt(value?: string): number | null {
+  if (!value) return null;
+  const parsed = parseInt(value, 10);
+  if (!Number.isFinite(parsed) || parsed <= 0) return null;
+  return parsed;
+}
 
 // Absolute paths needed for container mounts
 const PROJECT_ROOT = process.cwd();
@@ -39,6 +55,17 @@ export const DATA_DIR = path.resolve(PROJECT_ROOT, 'data');
 
 export const CONTAINER_IMAGE =
   process.env.CONTAINER_IMAGE || 'nanoclaw-agent:latest';
+export const CLAUDE_CODE_MODEL =
+  process.env.CLAUDE_CODE_MODEL || envConfig.CLAUDE_CODE_MODEL;
+export const ANTHROPIC_DEFAULT_HAIKU_MODEL =
+  process.env.ANTHROPIC_DEFAULT_HAIKU_MODEL ||
+  envConfig.ANTHROPIC_DEFAULT_HAIKU_MODEL;
+export const ANTHROPIC_DEFAULT_SONNET_MODEL =
+  process.env.ANTHROPIC_DEFAULT_SONNET_MODEL ||
+  envConfig.ANTHROPIC_DEFAULT_SONNET_MODEL;
+export const ANTHROPIC_DEFAULT_OPUS_MODEL =
+  process.env.ANTHROPIC_DEFAULT_OPUS_MODEL ||
+  envConfig.ANTHROPIC_DEFAULT_OPUS_MODEL;
 export const CONTAINER_TIMEOUT = parseInt(
   process.env.CONTAINER_TIMEOUT || '1800000',
   10,
@@ -50,6 +77,11 @@ export const CONTAINER_MAX_OUTPUT_SIZE = parseInt(
 export const CREDENTIAL_PROXY_PORT = parseInt(
   process.env.CREDENTIAL_PROXY_PORT || '3001',
   10,
+);
+export const PROMETHEUS_HOST =
+  process.env.PROMETHEUS_HOST || envConfig.PROMETHEUS_HOST || '127.0.0.1';
+export const PROMETHEUS_PORT = parseOptionalPositiveInt(
+  process.env.PROMETHEUS_PORT || envConfig.PROMETHEUS_PORT,
 );
 export const IPC_POLL_INTERVAL = 1000;
 export const IDLE_TIMEOUT = parseInt(process.env.IDLE_TIMEOUT || '1800000', 10); // 30min default — how long to keep container alive after last result

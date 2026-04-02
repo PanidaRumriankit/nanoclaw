@@ -6,6 +6,8 @@ import {
   CREDENTIAL_PROXY_PORT,
   IDLE_TIMEOUT,
   POLL_INTERVAL,
+  PROMETHEUS_HOST,
+  PROMETHEUS_PORT,
   TIMEZONE,
   TRIGGER_PATTERN,
 } from './config.js';
@@ -55,6 +57,13 @@ import {
 import { startSchedulerLoop } from './task-scheduler.js';
 import { Channel, NewMessage, RegisteredGroup } from './types.js';
 import { logger } from './logger.js';
+import {
+  installNetworkUsageTracking,
+  observeAgentRun,
+  recordStoredMessage,
+  setRegisteredGroupCount,
+  startMetricsServer,
+} from './metrics.js';
 
 // Re-export for backwards compatibility during refactor
 export { escapeXml, formatMessages } from './router.js';
@@ -79,6 +88,7 @@ function loadState(): void {
   }
   sessions = getAllSessions();
   registeredGroups = getAllRegisteredGroups();
+  setRegisteredGroupCount(Object.keys(registeredGroups).length);
   logger.info(
     { groupCount: Object.keys(registeredGroups).length },
     'State loaded',
@@ -104,6 +114,7 @@ function registerGroup(jid: string, group: RegisteredGroup): void {
 
   registeredGroups[jid] = group;
   setRegisteredGroup(jid, group);
+  setRegisteredGroupCount(Object.keys(registeredGroups).length);
 
   // Create group folder
   fs.mkdirSync(path.join(groupDir, 'logs'), { recursive: true });
@@ -266,6 +277,8 @@ async function runAgent(
   chatJid: string,
   onOutput?: (output: ContainerOutput) => Promise<void>,
 ): Promise<'success' | 'error'> {
+  const startedAt = Date.now();
+  let status: 'success' | 'error' = 'error';
   const isMain = group.isMain === true;
   const sessionId = sessions[group.folder];
 
@@ -301,6 +314,9 @@ async function runAgent(
           sessions[group.folder] = output.newSessionId;
           setSession(group.folder, output.newSessionId);
         }
+        if (output.status === 'error') {
+          status = 'error';
+        }
         await onOutput(output);
       }
     : undefined;
@@ -334,10 +350,15 @@ async function runAgent(
       return 'error';
     }
 
+    if (status !== 'error') {
+      status = 'success';
+    }
     return 'success';
   } catch (err) {
     logger.error({ group: group.name, err }, 'Agent error');
     return 'error';
+  } finally {
+    observeAgentRun('message', status, Date.now() - startedAt);
   }
 }
 
@@ -466,6 +487,7 @@ function ensureContainerSystemRunning(): void {
 }
 
 async function main(): Promise<void> {
+  installNetworkUsageTracking();
   ensureContainerSystemRunning();
   initDatabase();
   logger.info('Database initialized');
@@ -476,10 +498,15 @@ async function main(): Promise<void> {
     CREDENTIAL_PROXY_PORT,
     PROXY_BIND_HOST,
   );
+  const metricsServer =
+    PROMETHEUS_PORT === null
+      ? null
+      : await startMetricsServer(PROMETHEUS_PORT, PROMETHEUS_HOST);
 
   // Graceful shutdown handlers
   const shutdown = async (signal: string) => {
     logger.info({ signal }, 'Shutdown signal received');
+    metricsServer?.close();
     proxyServer.close();
     await queue.shutdown(10000);
     for (const ch of channels) await ch.disconnect();
@@ -507,6 +534,7 @@ async function main(): Promise<void> {
           return;
         }
       }
+      recordStoredMessage();
       storeMessage(msg);
     },
     onChatMetadata: (
