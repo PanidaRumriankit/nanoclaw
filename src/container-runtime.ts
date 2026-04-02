@@ -113,9 +113,11 @@ export function cleanupOrphans(): void {
       .filter(Boolean)
       .filter(
         (n) =>
-          !['nanoclaw-prometheus', 'nanoclaw-grafana', 'nanoclaw-loki'].includes(
-            n.replace(/['"]/g, ''),
-          ),
+          ![
+            'nanoclaw-prometheus',
+            'nanoclaw-grafana',
+            'nanoclaw-loki',
+          ].includes(n.replace(/['"]/g, '')),
       );
     for (const name of orphans) {
       try {
