@@ -21,6 +21,7 @@
   "overrides": {
     "@hono/node-server": "^1.19.10",
     "express-rate-limit": "^8.2.2",
-    "hono": "^4.12.4"
+    "hono": "^4.12.4",
+    "path-to-regexp": "8.4.0"
   }
 }
