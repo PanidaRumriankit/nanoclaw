@@ -182,6 +182,8 @@ Yes. Docker is the default runtime and works on both macOS and Linux. Just run `
 
 Agents run in containers, not behind application-level permission checks. They can only access explicitly mounted directories. You should still review what you're running, but the codebase is small enough that you actually can. See [docs/SECURITY.md](docs/SECURITY.md) for the full security model.
 
+For CI vulnerability scanning and SBOM generation, see [docs/VULNERABILITY_SCANNING.md](docs/VULNERABILITY_SCANNING.md).
+
 **Why no configuration files?**
 
 We don't want configuration sprawl. Every user should customize NanoClaw so that the code does exactly what they want, rather than configuring a generic system. If you prefer having config files, you can tell Claude to add them.
@@ -193,6 +195,15 @@ Yes. NanoClaw supports any Claude API-compatible model endpoint. Set these envir
 ```bash
 ANTHROPIC_BASE_URL=https://your-api-endpoint.com
 ANTHROPIC_AUTH_TOKEN=your-token-here
+CLAUDE_CODE_MODEL=your-primary-model
+```
+
+Optional model overrides:
+
+```bash
+ANTHROPIC_DEFAULT_HAIKU_MODEL=your-fast-model
+ANTHROPIC_DEFAULT_SONNET_MODEL=your-balanced-model
+ANTHROPIC_DEFAULT_OPUS_MODEL=your-strongest-model
 ```
 
 This allows you to use:
@@ -205,6 +216,10 @@ Note: The model must support the Anthropic API format for best compatibility.
 **How do I debug issues?**
 
 Ask Claude Code. "Why isn't the scheduler running?" "What's in the recent logs?" "Why did this message not get a response?" That's the AI-native approach that underlies NanoClaw.
+
+**Can I scrape Prometheus metrics from the core process?**
+
+Yes. Set `PROMETHEUS_PORT=9464` in `.env` to expose a `/metrics` endpoint. NanoClaw binds that endpoint to `127.0.0.1` by default; set `PROMETHEUS_HOST` if you need a different bind address. The metrics include total message count, active container count, and per-IP outbound network connection/byte totals for the core process.
 
 **Why isn't the setup working for me?**
 

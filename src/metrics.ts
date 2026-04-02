@@ -83,6 +83,13 @@ const networkActiveConnectionsGauge = new Gauge<'remote_ip'>({
   registers: [registry],
 });
 
+const queueDepthGauge = new Gauge<'group_jid'>({
+  name: 'nanoclaw_queue_depth',
+  help: 'Pending messages and tasks queued per group.',
+  labelNames: ['group_jid'],
+  registers: [registry],
+});
+
 registeredGroupsGauge.set(0);
 activeContainersGauge.set(0);
 
@@ -114,6 +121,10 @@ export function markContainerStarted(): void {
 export function markContainerFinished(): void {
   activeContainers = Math.max(0, activeContainers - 1);
   activeContainersGauge.set(activeContainers);
+}
+
+export function setQueueDepth(groupJid: string, depth: number): void {
+  queueDepthGauge.set({ group_jid: groupJid }, depth);
 }
 
 export function renderMetrics(): Promise<string> {

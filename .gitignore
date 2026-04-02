@@ -35,4 +35,7 @@ groups/global/*
 # Skills system (local per-installation state)
 .nanoclaw/
 
+# Observability stack data
+observability/data/
+
 agents-sdk-docs

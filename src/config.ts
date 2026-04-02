@@ -15,6 +15,7 @@ const envConfig = readEnvFile([
   'ANTHROPIC_DEFAULT_OPUS_MODEL',
   'PROMETHEUS_HOST',
   'PROMETHEUS_PORT',
+  'LOKI_URL',
 ]);
 
 export const ASSISTANT_NAME =
@@ -83,6 +84,7 @@ export const PROMETHEUS_HOST =
 export const PROMETHEUS_PORT = parseOptionalPositiveInt(
   process.env.PROMETHEUS_PORT || envConfig.PROMETHEUS_PORT,
 );
+export const LOKI_URL = process.env.LOKI_URL || envConfig.LOKI_URL || '';
 export const IPC_POLL_INTERVAL = 1000;
 export const IDLE_TIMEOUT = parseInt(process.env.IDLE_TIMEOUT || '1800000', 10); // 30min default — how long to keep container alive after last result
 export const MAX_CONCURRENT_CONTAINERS = Math.max(
