@@ -228,10 +228,9 @@ function trackSocket(socket: net.Socket): void {
     this: net.Socket,
     ...args: unknown[]
   ): net.Socket {
-    const result = (originalEnd as (...callArgs: unknown[]) => net.Socket).apply(
-      this,
-      args,
-    );
+    const result = (
+      originalEnd as (...callArgs: unknown[]) => net.Socket
+    ).apply(this, args);
     setImmediate(flushSocketWrittenBytes);
     return result;
   };
