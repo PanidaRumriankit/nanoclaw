@@ -25,6 +25,7 @@ import {
   OnChatMetadata,
   RegisteredGroup,
 } from '../types.js';
+import { recordError, recordSentMessage } from '../metrics.js';
 import { registerChannel, ChannelOpts } from './registry.js';
 
 const GROUP_SYNC_INTERVAL_MS = 24 * 60 * 60 * 1000; // 24 hours
@@ -113,9 +114,11 @@ export class WhatsAppChannel implements Channel {
           logger.info('Reconnecting...');
           this.connectInternal().catch((err) => {
             logger.error({ err }, 'Failed to reconnect, retrying in 5s');
+            recordError();
             setTimeout(() => {
               this.connectInternal().catch((err2) => {
                 logger.error({ err: err2 }, 'Reconnection retry failed');
+                recordError();
               });
             }, 5000);
           });
@@ -241,6 +244,7 @@ export class WhatsAppChannel implements Channel {
             { err, remoteJid: msg.key?.remoteJid },
             'Error processing incoming message',
           );
+          recordError();
         }
       }
     });
@@ -265,6 +269,7 @@ export class WhatsAppChannel implements Channel {
     }
     try {
       await this.sock.sendMessage(jid, { text: prefixed });
+      recordSentMessage();
       logger.info({ jid, length: prefixed.length }, 'Message sent');
     } catch (err) {
       // If send fails, queue it for retry on reconnect
@@ -296,6 +301,26 @@ export class WhatsAppChannel implements Channel {
       await this.sock.sendPresenceUpdate(status, jid);
     } catch (err) {
       logger.debug({ jid, err }, 'Failed to update typing status');
+    }
+  }
+
+  async joinGroup(invite: string): Promise<string> {
+    const inviteCode = invite.includes('chat.whatsapp.com/')
+      ? invite.split('chat.whatsapp.com/')[1].split('/')[0].split('?')[0]
+      : invite.split('?')[0];
+
+    try {
+      const jid = await this.sock.groupAcceptInvite(inviteCode);
+      if (jid) {
+        logger.info({ jid, inviteCode }, 'Joined group via invite code');
+        // Refresh metadata to get the group name
+        await this.syncGroupMetadata(true);
+        return jid;
+      }
+      throw new Error('Failed to join group (no JID returned)');
+    } catch (err) {
+      logger.error({ err, inviteCode }, 'Failed to join group via invite code');
+      throw err;
     }
   }
 

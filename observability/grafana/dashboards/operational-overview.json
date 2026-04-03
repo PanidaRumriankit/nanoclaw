@@ -1,278 +1,217 @@
 {
-  "annotations": {
-    "list": [
-      {
-        "builtIn": 1,
-        "datasource": { "type": "grafana", "uid": "-- Grafana --" },
-        "enable": true,
-        "hide": true,
-        "iconColor": "rgba(0, 211, 255, 1)",
-        "name": "Annotations & Alerts",
-        "type": "dashboard"
-      }
-    ]
-  },
+  "annotations": { "list": [] },
+  "description": "Enterprise-grade observability dashboard for NanoClaw WhatsApp Bot",
   "editable": true,
   "fiscalYearStartMonth": 0,
   "graphTooltip": 1,
-  "id": null,
   "links": [],
+  "liveNow": false,
   "panels": [
     {
+      "type": "row",
+      "title": "📊 Operational Overview",
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 0 },
+      "collapsed": false,
+      "panels": []
+    },
+    {
       "title": "Message Throughput",
-      "description": "Messages processed per second (5m rate)",
+      "description": "Average messages per minute (5m rate)",
       "type": "timeseries",
-      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 0 },
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 1 },
       "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
       "fieldConfig": {
         "defaults": {
           "color": { "mode": "palette-classic" },
-          "custom": {
-            "axisBorderShow": false,
-            "axisCenteredZero": false,
-            "axisLabel": "msg/s",
-            "drawStyle": "line",
-            "fillOpacity": 20,
-            "gradientMode": "scheme",
-            "lineInterpolation": "smooth",
-            "lineWidth": 2,
-            "pointSize": 5,
-            "showPoints": "auto",
-            "spanNulls": false,
-            "stacking": { "group": "A", "mode": "none" }
-          },
-          "unit": "ops"
-        },
-        "overrides": []
+          "custom": { "axisLabel": "msg/min", "drawStyle": "line", "fillOpacity": 15, "lineWidth": 2, "showPoints": "auto" },
+          "unit": "reqpm"
+        }
       },
       "targets": [
-        {
-          "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
-          "expr": "rate(nanoclaw_messages_total[5m])",
-          "legendFormat": "Messages/sec",
-          "refId": "A"
-        }
+        { "expr": "rate(nanoclaw_messages_total[5m]) * 60", "legendFormat": "Incoming", "refId": "A" },
+        { "expr": "rate(nanoclaw_messages_sent_total[5m]) * 60", "legendFormat": "Outgoing", "refId": "B" }
       ],
-      "options": {
-        "legend": { "displayMode": "list", "placement": "bottom" },
-        "tooltip": { "mode": "single", "sort": "none" }
-      }
+      "options": { "legend": { "displayMode": "list", "placement": "bottom" } }
     },
     {
       "title": "Active Containers",
-      "description": "Currently running agent containers",
+      "description": "Currently running agent containers (isolated processes)",
       "type": "stat",
-      "gridPos": { "h": 8, "w": 6, "x": 12, "y": 0 },
+      "gridPos": { "h": 8, "w": 6, "x": 12, "y": 1 },
       "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
       "fieldConfig": {
         "defaults": {
           "color": { "mode": "thresholds" },
           "thresholds": {
             "mode": "absolute",
-            "steps": [
-              { "color": "green", "value": null },
-              { "color": "#EAB839", "value": 3 },
-              { "color": "red", "value": 5 }
-            ]
-          },
-          "unit": "none"
-        },
-        "overrides": []
+            "steps": [{ "color": "blue", "value": null }, { "color": "green", "value": 1 }]
+          }
+        }
       },
       "targets": [
-        {
-          "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
-          "expr": "nanoclaw_active_containers",
-          "legendFormat": "Active",
-          "refId": "A"
-        }
+        { "expr": "nanoclaw_active_containers", "legendFormat": "Active", "refId": "A" }
       ],
       "options": {
         "colorMode": "background",
         "graphMode": "none",
-        "justifyMode": "auto",
-        "orientation": "auto",
-        "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false },
-        "textMode": "auto"
+        "justifyMode": "center",
+        "reduceOptions": { "calcs": ["lastNotNull"], "values": false },
+        "textMode": "value"
       }
     },
     {
       "title": "Registered Groups",
-      "description": "Number of registered groups loaded in the core process",
+      "description": "Total number of groups synchronized with the bot system",
       "type": "stat",
-      "gridPos": { "h": 8, "w": 6, "x": 18, "y": 0 },
+      "gridPos": { "h": 8, "w": 6, "x": 18, "y": 1 },
       "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
       "fieldConfig": {
         "defaults": {
           "color": { "mode": "thresholds" },
           "thresholds": {
             "mode": "absolute",
-            "steps": [
-              { "color": "blue", "value": null },
-              { "color": "green", "value": 1 }
-            ]
-          },
-          "unit": "none"
-        },
-        "overrides": []
+            "steps": [{ "color": "blue", "value": null }, { "color": "green", "value": 1 }]
+          }
+        }
       },
       "targets": [
-        {
-          "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
-          "expr": "nanoclaw_registered_groups",
-          "legendFormat": "Groups",
-          "refId": "A"
-        }
+        { "expr": "nanoclaw_registered_groups", "legendFormat": "Groups", "refId": "A" }
       ],
       "options": {
         "colorMode": "background",
         "graphMode": "none",
-        "justifyMode": "auto",
-        "orientation": "auto",
-        "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false },
-        "textMode": "auto"
+        "justifyMode": "center",
+        "reduceOptions": { "calcs": ["lastNotNull"], "values": false },
+        "textMode": "value"
       }
     },
     {
       "title": "Queue Depth by Group",
-      "description": "Pending messages and tasks queued per group",
+      "description": "Pending workload per group (messages + tasks waiting for processing)",
       "type": "bargauge",
-      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 8 },
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 9 },
       "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
       "fieldConfig": {
         "defaults": {
           "color": { "mode": "palette-classic" },
-          "thresholds": {
-            "mode": "absolute",
-            "steps": [
-              { "color": "green", "value": null },
-              { "color": "yellow", "value": 3 },
-              { "color": "red", "value": 10 }
-            ]
-          },
-          "unit": "none"
-        },
-        "overrides": []
+          "thresholds": { "mode": "absolute", "steps": [{ "color": "green", "value": null }, { "color": "yellow", "value": 10 }, { "color": "red", "value": 50 }] }
+        }
       },
       "targets": [
         {
-          "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
-          "expr": "nanoclaw_queue_depth",
+          "expr": "nanoclaw_queue_depth{group_jid!~\"G[0-9]+@g.us|group-[A-C]@g.us\"}",
           "legendFormat": "{{ group_jid }}",
           "refId": "A"
         }
       ],
-      "options": {
-        "displayMode": "gradient",
-        "minVizWidth": 8,
-        "minVizHeight": 16,
-        "namePlacement": "auto",
-        "orientation": "horizontal",
-        "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false },
-        "showUnfilled": true,
-        "sizing": "auto",
-        "valueMode": "color"
-      }
+      "options": { "displayMode": "gradient", "orientation": "horizontal", "valueMode": "color" }
     },
     {
       "title": "Error Rate Trend",
-      "description": "Agent run errors per second (5m rate)",
+      "description": "Count of failures per minute (5m average rate). Blank means no errors.",
       "type": "timeseries",
-      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 8 },
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 9 },
       "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
       "fieldConfig": {
         "defaults": {
-          "color": { "fixedColor": "red", "mode": "fixed" },
-          "custom": {
-            "axisBorderShow": false,
-            "axisCenteredZero": false,
-            "axisLabel": "errors/s",
-            "drawStyle": "line",
-            "fillOpacity": 0,
-            "gradientMode": "none",
-            "lineInterpolation": "smooth",
-            "lineWidth": 2,
-            "pointSize": 5,
-            "showPoints": "auto",
-            "spanNulls": false,
-            "stacking": { "group": "A", "mode": "none" }
-          },
-          "unit": "ops"
-        },
-        "overrides": []
+          "color": { "mode": "palette-classic" },
+          "custom": { "axisLabel": "errors/min" },
+          "unit": "reqpm"
+        }
+      },
+      "targets": [
+        { "expr": "rate(nanoclaw_agent_runs_total{status=\"error\"}[5m]) * 60 > 0", "legendFormat": "Agent Errors/min", "refId": "A" },
+        { "expr": "rate(nanoclaw_errors_total[5m]) * 60 > 0", "legendFormat": "Bot Errors/min", "refId": "B" }
+      ],
+      "options": { "legend": { "displayMode": "list", "placement": "bottom" } }
+    },
+    {
+      "type": "row",
+      "title": "⚡ Agent Performance",
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 17 },
+      "collapsed": false,
+      "panels": []
+    },
+    {
+      "title": "Agent Execution Duration (p95)",
+      "description": "95th percentile of how long agents take to complete tasks (in seconds)",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 24, "x": 0, "y": 18 },
+      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "fieldConfig": {
+        "defaults": {
+          "custom": { "fillOpacity": 10, "lineWidth": 2 },
+          "unit": "s"
+        }
       },
       "targets": [
         {
-          "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
-          "expr": "rate(nanoclaw_agent_runs_total{status=\"error\"}[5m])",
-          "legendFormat": "Errors/sec",
+          "expr": "histogram_quantile(0.95, sum by (le, kind) (rate(nanoclaw_agent_run_duration_seconds_bucket[5m])))",
+          "legendFormat": "{{ kind }} (p95)",
           "refId": "A"
         }
       ],
-      "options": {
-        "legend": { "displayMode": "list", "placement": "bottom" },
-        "tooltip": { "mode": "single", "sort": "none" }
-      }
+      "options": { "legend": { "displayMode": "list", "placement": "right" } }
+    },
+    {
+      "type": "row",
+      "title": "🌐 Network Telemetry",
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 26 },
+      "collapsed": false,
+      "panels": []
+    },
+    {
+      "title": "Bandwidth Usage",
+      "description": "Volume of network traffic read/written per IP endpoint",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 27 },
+      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "fieldConfig": {
+        "defaults": { "unit": "binBps" }
+      },
+      "targets": [
+        { "expr": "sum(rate(nanoclaw_network_bytes_read_total[5m])) by (remote_ip)", "legendFormat": "Read: {{ remote_ip }}", "refId": "A" },
+        { "expr": "sum(rate(nanoclaw_network_bytes_written_total[5m])) by (remote_ip)", "legendFormat": "Write: {{ remote_ip }}", "refId": "B" }
+      ]
+    },
+    {
+      "title": "Active Outbound Connections",
+      "description": "Current number of open TCP connections by destination host",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 27 },
+      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "targets": [
+        { "expr": "sum(nanoclaw_network_active_connections) by (remote_ip)", "legendFormat": "{{ remote_ip }}", "refId": "A" }
+      ]
+    },
+    {
+      "type": "row",
+      "title": "📜 Recent System Logs",
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 35 },
+      "collapsed": false,
+      "panels": []
     },
     {
       "title": "Recent Logs",
-      "description": "Live stream of NanoClaw logs from Loki",
+      "description": "Live audit trail of bot activity and agent logs",
       "type": "logs",
-      "gridPos": { "h": 12, "w": 24, "x": 0, "y": 24 },
+      "gridPos": { "h": 12, "w": 24, "x": 0, "y": 36 },
       "datasource": { "type": "loki", "uid": "${DS_LOKI}" },
-      "targets": [
-        {
-          "datasource": { "type": "loki", "uid": "${DS_LOKI}" },
-          "expr": "{job=\"nanoclaw\"}",
-          "refId": "A"
-        }
-      ],
-      "options": {
-        "dedupStrategy": "none",
-        "enableLogDetails": true,
-        "prettifyLogMessage": true,
-        "showCommonLabels": false,
-        "showLabels": false,
-        "showTime": true,
-        "sortOrder": "Descending",
-        "wrapLogMessage": true
-      }
+      "targets": [{ "datasource": { "type": "loki", "uid": "${DS_LOKI}" }, "expr": "{job=\"nanoclaw\"}", "refId": "A" }],
+      "options": { "showTime": true, "sortOrder": "Descending" }
     }
   ],
   "schemaVersion": 39,
   "tags": ["nanoclaw", "operational"],
   "templating": {
     "list": [
-      {
-        "current": { "selected": false, "text": "Prometheus", "value": "Prometheus" },
-        "hide": 2,
-        "includeAll": false,
-        "multi": false,
-        "name": "DS_PROMETHEUS",
-        "options": [],
-        "query": "prometheus",
-        "refresh": 1,
-        "regex": "",
-        "type": "datasource"
-      },
-      {
-        "current": { "selected": false, "text": "Loki", "value": "Loki" },
-        "hide": 2,
-        "includeAll": false,
-        "multi": false,
-        "name": "DS_LOKI",
-        "options": [],
-        "query": "loki",
-        "refresh": 1,
-        "regex": "",
-        "type": "datasource"
-      }
+      { "name": "DS_PROMETHEUS", "query": "prometheus", "type": "datasource" },
+      { "name": "DS_LOKI", "query": "loki", "type": "datasource" }
     ]
   },
-  "time": { "from": "now-1h", "to": "now" },
+  "time": { "from": "now-6h", "to": "now" },
   "timepicker": {},
   "timezone": "",
   "title": "NanoClaw — Operational Overview",
-  "uid": "nanoclaw-ops-overview",
-  "version": 1
+  "version": 8
 }

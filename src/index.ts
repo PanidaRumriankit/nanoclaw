@@ -62,6 +62,7 @@ import {
   observeAgentRun,
   recordStoredMessage,
   setRegisteredGroupCount,
+  setQueueDepth,
   startMetricsServer,
 } from './metrics.js';
 
@@ -89,6 +90,9 @@ function loadState(): void {
   sessions = getAllSessions();
   registeredGroups = getAllRegisteredGroups();
   setRegisteredGroupCount(Object.keys(registeredGroups).length);
+  for (const jid of Object.keys(registeredGroups)) {
+    setQueueDepth(jid, 0);
+  }
   logger.info(
     { groupCount: Object.keys(registeredGroups).length },
     'State loaded',
@@ -115,6 +119,7 @@ function registerGroup(jid: string, group: RegisteredGroup): void {
   registeredGroups[jid] = group;
   setRegisteredGroup(jid, group);
   setRegisteredGroupCount(Object.keys(registeredGroups).length);
+  setQueueDepth(jid, 0);
 
   // Create group folder
   fs.mkdirSync(path.join(groupDir, 'logs'), { recursive: true });
@@ -343,6 +348,7 @@ async function runAgent(
     }
 
     if (output.status === 'error') {
+      status = 'error';
       logger.error(
         { group: group.name, error: output.error },
         'Container agent error',
@@ -350,9 +356,7 @@ async function runAgent(
       return 'error';
     }
 
-    if (status !== 'error') {
-      status = 'success';
-    }
+    status = 'success';
     return 'success';
   } catch (err) {
     logger.error({ group: group.name, err }, 'Agent error');
@@ -599,6 +603,13 @@ async function main(): Promise<void> {
           .filter((ch) => ch.syncGroups)
           .map((ch) => ch.syncGroups!(force)),
       );
+    },
+    joinGroup: async (invite: string) => {
+      const channel = channels.find((ch) => ch.name === 'whatsapp');
+      if (!channel?.joinGroup) {
+        throw new Error('WhatsApp channel or joinGroup not available');
+      }
+      return channel.joinGroup(invite);
     },
     getAvailableGroups,
     writeGroupsSnapshot: (gf, im, ag, rj) =>

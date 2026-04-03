@@ -90,6 +90,8 @@ export interface Channel {
   setTyping?(jid: string, isTyping: boolean): Promise<void>;
   // Optional: sync group/chat names from the platform.
   syncGroups?(force: boolean): Promise<void>;
+  // Optional: join group via invite link/code. Returns the JID of the joined group.
+  joinGroup?(inviteCode: string): Promise<string>;
 }
 
 // Callback type that channels use to deliver inbound messages
