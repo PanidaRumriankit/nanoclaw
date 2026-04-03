@@ -89,7 +89,7 @@
       ],
       "options": {
         "colorMode": "background",
-        "graphMode": "area",
+        "graphMode": "none",
         "justifyMode": "auto",
         "orientation": "auto",
         "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false },
@@ -188,8 +188,8 @@
             "axisCenteredZero": false,
             "axisLabel": "errors/s",
             "drawStyle": "line",
-            "fillOpacity": 15,
-            "gradientMode": "scheme",
+            "fillOpacity": 0,
+            "gradientMode": "none",
             "lineInterpolation": "smooth",
             "lineWidth": 2,
             "pointSize": 5,
@@ -215,108 +215,10 @@
       }
     },
     {
-      "title": "Agent Run Duration (p50 / p95 / p99)",
-      "description": "Agent container run duration percentiles",
-      "type": "timeseries",
-      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 16 },
-      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
-      "fieldConfig": {
-        "defaults": {
-          "color": { "mode": "palette-classic" },
-          "custom": {
-            "axisBorderShow": false,
-            "axisCenteredZero": false,
-            "axisLabel": "duration",
-            "drawStyle": "line",
-            "fillOpacity": 10,
-            "gradientMode": "none",
-            "lineInterpolation": "smooth",
-            "lineWidth": 2,
-            "pointSize": 5,
-            "showPoints": "auto",
-            "spanNulls": false,
-            "stacking": { "group": "A", "mode": "none" }
-          },
-          "unit": "s"
-        },
-        "overrides": []
-      },
-      "targets": [
-        {
-          "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
-          "expr": "histogram_quantile(0.50, rate(nanoclaw_agent_run_duration_seconds_bucket[5m]))",
-          "legendFormat": "p50",
-          "refId": "A"
-        },
-        {
-          "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
-          "expr": "histogram_quantile(0.95, rate(nanoclaw_agent_run_duration_seconds_bucket[5m]))",
-          "legendFormat": "p95",
-          "refId": "B"
-        },
-        {
-          "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
-          "expr": "histogram_quantile(0.99, rate(nanoclaw_agent_run_duration_seconds_bucket[5m]))",
-          "legendFormat": "p99",
-          "refId": "C"
-        }
-      ],
-      "options": {
-        "legend": { "displayMode": "list", "placement": "bottom" },
-        "tooltip": { "mode": "multi", "sort": "desc" }
-      }
-    },
-    {
-      "title": "Network I/O",
-      "description": "Bytes read/written per second (5m rate, all remote IPs)",
-      "type": "timeseries",
-      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 16 },
-      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
-      "fieldConfig": {
-        "defaults": {
-          "color": { "mode": "palette-classic" },
-          "custom": {
-            "axisBorderShow": false,
-            "axisCenteredZero": false,
-            "axisLabel": "bytes/s",
-            "drawStyle": "line",
-            "fillOpacity": 15,
-            "gradientMode": "scheme",
-            "lineInterpolation": "smooth",
-            "lineWidth": 2,
-            "pointSize": 5,
-            "showPoints": "auto",
-            "spanNulls": false,
-            "stacking": { "group": "A", "mode": "none" }
-          },
-          "unit": "Bps"
-        },
-        "overrides": []
-      },
-      "targets": [
-        {
-          "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
-          "expr": "sum(rate(nanoclaw_network_bytes_read_total[5m]))",
-          "legendFormat": "Bytes Read/s",
-          "refId": "A"
-        },
-        {
-          "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
-          "expr": "sum(rate(nanoclaw_network_bytes_written_total[5m]))",
-          "legendFormat": "Bytes Written/s",
-          "refId": "B"
-        }
-      ],
-      "options": {
-        "legend": { "displayMode": "list", "placement": "bottom" },
-        "tooltip": { "mode": "multi", "sort": "desc" }
-      }
-    },
-    {
       "title": "Recent Logs",
-      "description": "Live log stream from NanoClaw via Loki",
+      "description": "Live stream of NanoClaw logs from Loki",
       "type": "logs",
-      "gridPos": { "h": 10, "w": 24, "x": 0, "y": 24 },
+      "gridPos": { "h": 12, "w": 24, "x": 0, "y": 24 },
       "datasource": { "type": "loki", "uid": "${DS_LOKI}" },
       "targets": [
         {
