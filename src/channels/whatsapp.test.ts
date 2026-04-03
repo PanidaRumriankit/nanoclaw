@@ -61,6 +61,7 @@ function createFakeSocket() {
     sendMessage: vi.fn().mockResolvedValue(undefined),
     sendPresenceUpdate: vi.fn().mockResolvedValue(undefined),
     groupFetchAllParticipating: vi.fn().mockResolvedValue({}),
+    groupAcceptInvite: vi.fn().mockResolvedValue('newgroup@g.us'),
     end: vi.fn(),
     // Expose the event emitter for triggering events in tests
     _ev: ev,
@@ -931,6 +932,62 @@ describe('WhatsAppChannel', () => {
       await expect(
         channel.setTyping('test@g.us', true),
       ).resolves.toBeUndefined();
+    });
+  });
+
+  // --- Group join via invite ---
+
+  describe('joinGroup', () => {
+    it('joins group using raw invite code', async () => {
+      const opts = createTestOpts();
+      const channel = new WhatsAppChannel(opts);
+
+      await connectChannel(channel);
+
+      const jid = await channel.joinGroup('KxY123');
+
+      expect(jid).toBe('newgroup@g.us');
+      expect(fakeSocket.groupAcceptInvite).toHaveBeenCalledWith('KxY123');
+      // Should trigger fresh metadata sync
+      expect(fakeSocket.groupFetchAllParticipating).toHaveBeenCalled();
+    });
+
+    it('extracts code from full WhatsApp invite URL', async () => {
+      const opts = createTestOpts();
+      const channel = new WhatsAppChannel(opts);
+
+      await connectChannel(channel);
+
+      const jid = await channel.joinGroup(
+        'https://chat.whatsapp.com/LzM456/extra',
+      );
+
+      expect(jid).toBe('newgroup@g.us');
+      expect(fakeSocket.groupAcceptInvite).toHaveBeenCalledWith('LzM456');
+    });
+
+    it('throws error when join fails', async () => {
+      const opts = createTestOpts();
+      const channel = new WhatsAppChannel(opts);
+
+      await connectChannel(channel);
+
+      fakeSocket.groupAcceptInvite.mockRejectedValueOnce(new Error('Rejected'));
+
+      await expect(channel.joinGroup('fail')).rejects.toThrow('Rejected');
+    });
+
+    it('throws error when no JID returned', async () => {
+      const opts = createTestOpts();
+      const channel = new WhatsAppChannel(opts);
+
+      await connectChannel(channel);
+
+      fakeSocket.groupAcceptInvite.mockResolvedValueOnce(undefined);
+
+      await expect(channel.joinGroup('empty')).rejects.toThrow(
+        'Failed to join group (no JID returned)',
+      );
     });
   });
 
