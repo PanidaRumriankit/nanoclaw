@@ -64,6 +64,7 @@ interface VolumeMount {
 function buildVolumeMounts(
   group: RegisteredGroup,
   isMain: boolean,
+  containerName: string,
 ): VolumeMount[] {
   const mounts: VolumeMount[] = [];
   const projectRoot = process.cwd();
@@ -214,11 +215,11 @@ function buildVolumeMounts(
     mounts.push(...validatedMounts);
   }
 
-  // Persistent /tmp mount for outputs and reports
-  const tmpDir = path.join(projectRoot, 'data', 'tmp');
-  fs.mkdirSync(tmpDir, { recursive: true });
+  // Unique /tmp mount for this specific run to prevent cross-container interference
+  const runTmpDir = path.join(projectRoot, 'data', 'tmp', containerName);
+  fs.mkdirSync(runTmpDir, { recursive: true });
   mounts.push({
-    hostPath: tmpDir,
+    hostPath: runTmpDir,
     containerPath: '/tmp',
     readonly: false,
   });
@@ -308,13 +309,12 @@ export async function runContainerAgent(
   onOutput?: (output: ContainerOutput) => Promise<void>,
 ): Promise<ContainerOutput> {
   const startTime = Date.now();
-
   const groupDir = resolveGroupFolderPath(group.folder);
   fs.mkdirSync(groupDir, { recursive: true });
 
-  const mounts = buildVolumeMounts(group, input.isMain);
   const safeName = group.folder.replace(/[^a-zA-Z0-9-]/g, '-');
   const containerName = `nanoclaw-${safeName}-${Date.now()}`;
+  const mounts = buildVolumeMounts(group, input.isMain, containerName);
   const containerArgs = buildContainerArgs(mounts, containerName);
 
   logger.debug(

@@ -24,7 +24,13 @@ collectDefaultMetrics({
 
 const messagesTotal = new Counter({
   name: 'nanoclaw_messages_total',
-  help: 'Total messages processed by the NanoClaw core process.',
+  help: 'Total incoming messages processed by the NanoClaw core process.',
+  registers: [registry],
+});
+
+const messagesSentTotal = new Counter({
+  name: 'nanoclaw_messages_sent_total',
+  help: 'Total outgoing messages sent by the bot.',
   registers: [registry],
 });
 
@@ -83,14 +89,36 @@ const networkActiveConnectionsGauge = new Gauge<'remote_ip'>({
   registers: [registry],
 });
 
+const queueDepthGauge = new Gauge<'group_jid'>({
+  name: 'nanoclaw_queue_depth',
+  help: 'Pending messages and tasks queued per group.',
+  labelNames: ['group_jid'],
+  registers: [registry],
+});
+
+const errorsTotal = new Counter({
+  name: 'nanoclaw_errors_total',
+  help: 'Total errors logged by the NanoClaw bot process.',
+  registers: [registry],
+});
+
 registeredGroupsGauge.set(0);
 activeContainersGauge.set(0);
+agentRunsTotal.inc({ kind: 'message', status: 'error' }, 0);
+agentRunsTotal.inc({ kind: 'message', status: 'success' }, 0);
+agentRunsTotal.inc({ kind: 'scheduled_task', status: 'error' }, 0);
+agentRunsTotal.inc({ kind: 'scheduled_task', status: 'success' }, 0);
+errorsTotal.inc(0);
 
 let networkUsageTrackingInstalled = false;
 const trackedSockets = new WeakSet<net.Socket>();
 
 export function recordStoredMessage(): void {
   messagesTotal.inc();
+}
+
+export function recordSentMessage(): void {
+  messagesSentTotal.inc();
 }
 
 export function observeAgentRun(
@@ -114,6 +142,14 @@ export function markContainerStarted(): void {
 export function markContainerFinished(): void {
   activeContainers = Math.max(0, activeContainers - 1);
   activeContainersGauge.set(activeContainers);
+}
+
+export function setQueueDepth(groupJid: string, depth: number): void {
+  queueDepthGauge.set({ group_jid: groupJid }, depth);
+}
+
+export function recordError(): void {
+  errorsTotal.inc();
 }
 
 export function renderMetrics(): Promise<string> {

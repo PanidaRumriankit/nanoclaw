@@ -15,6 +15,7 @@ export interface IpcDeps {
   registeredGroups: () => Record<string, RegisteredGroup>;
   registerGroup: (jid: string, group: RegisteredGroup) => void;
   syncGroups: (force: boolean) => Promise<void>;
+  joinGroup: (invite: string) => Promise<string>;
   getAvailableGroups: () => AvailableGroup[];
   writeGroupsSnapshot: (
     groupFolder: string,
@@ -171,6 +172,7 @@ export async function processTaskIpc(
     trigger?: string;
     requiresTrigger?: boolean;
     containerConfig?: RegisteredGroup['containerConfig'];
+    invite?: string;
   },
   sourceGroup: string, // Verified identity from IPC directory
   isMain: boolean, // Verified from directory path
@@ -445,6 +447,27 @@ export async function processTaskIpc(
         logger.warn(
           { data },
           'Invalid register_group request - missing required fields',
+        );
+      }
+      break;
+
+    case 'join_group':
+      // Only main group can join new groups via invite
+      if (!isMain) {
+        logger.warn({ sourceGroup }, 'Unauthorized join_group attempt blocked');
+        break;
+      }
+      if (data.invite) {
+        try {
+          const jid = await deps.joinGroup(data.invite);
+          logger.info({ jid, sourceGroup }, 'Group joined via IPC');
+        } catch (err) {
+          logger.error({ err, sourceGroup }, 'Failed to join group via IPC');
+        }
+      } else {
+        logger.warn(
+          { sourceGroup },
+          'Invalid join_group request - missing invite code',
         );
       }
       break;

@@ -107,7 +107,18 @@ export function cleanupOrphans(): void {
       `${CONTAINER_RUNTIME_BIN} ps --filter name=nanoclaw- --format '{{.Names}}'`,
       { stdio: ['pipe', 'pipe', 'pipe'], encoding: 'utf-8' },
     );
-    const orphans = output.trim().split('\n').filter(Boolean);
+    const orphans = output
+      .trim()
+      .split('\n')
+      .filter(Boolean)
+      .filter(
+        (n) =>
+          ![
+            'nanoclaw-prometheus',
+            'nanoclaw-grafana',
+            'nanoclaw-loki',
+          ].includes(n.replace(/['"]/g, '')),
+      );
     for (const name of orphans) {
       try {
         execSync(stopContainer(name), { stdio: 'pipe' });

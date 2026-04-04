@@ -4,6 +4,7 @@ import path from 'path';
 
 import { DATA_DIR, MAX_CONCURRENT_CONTAINERS } from './config.js';
 import { logger } from './logger.js';
+import { setQueueDepth } from './metrics.js';
 
 interface QueuedTask {
   id: string;
@@ -66,6 +67,7 @@ export class GroupQueue {
 
     if (state.active) {
       state.pendingMessages = true;
+      this.emitQueueDepth(groupJid, state);
       logger.debug({ groupJid }, 'Container active, message queued');
       return;
     }
@@ -75,6 +77,7 @@ export class GroupQueue {
       if (!this.waitingGroups.includes(groupJid)) {
         this.waitingGroups.push(groupJid);
       }
+      this.emitQueueDepth(groupJid, state);
       logger.debug(
         { groupJid, activeCount: this.activeCount },
         'At concurrency limit, message queued',
@@ -104,6 +107,7 @@ export class GroupQueue {
 
     if (state.active) {
       state.pendingTasks.push({ id: taskId, groupJid, fn });
+      this.emitQueueDepth(groupJid, state);
       if (state.idleWaiting) {
         this.closeStdin(groupJid);
       }
@@ -113,6 +117,7 @@ export class GroupQueue {
 
     if (this.activeCount >= MAX_CONCURRENT_CONTAINERS) {
       state.pendingTasks.push({ id: taskId, groupJid, fn });
+      this.emitQueueDepth(groupJid, state);
       if (!this.waitingGroups.includes(groupJid)) {
         this.waitingGroups.push(groupJid);
       }
@@ -283,6 +288,11 @@ export class GroupQueue {
     }, delayMs);
   }
 
+  private emitQueueDepth(groupJid: string, state: GroupState): void {
+    const depth = state.pendingTasks.length + (state.pendingMessages ? 1 : 0);
+    setQueueDepth(groupJid, depth);
+  }
+
   private drainGroup(groupJid: string): void {
     if (this.shuttingDown) return;
 
@@ -291,6 +301,7 @@ export class GroupQueue {
     // Tasks first (they won't be re-discovered from SQLite like messages)
     if (state.pendingTasks.length > 0) {
       const task = state.pendingTasks.shift()!;
+      this.emitQueueDepth(groupJid, state);
       this.runTask(groupJid, task).catch((err) =>
         logger.error(
           { groupJid, taskId: task.id, err },
@@ -302,6 +313,8 @@ export class GroupQueue {
 
     // Then pending messages
     if (state.pendingMessages) {
+      state.pendingMessages = false;
+      this.emitQueueDepth(groupJid, state);
       this.runForGroup(groupJid, 'drain').catch((err) =>
         logger.error(
           { groupJid, err },
@@ -311,6 +324,7 @@ export class GroupQueue {
       return;
     }
 
+    this.emitQueueDepth(groupJid, state);
     // Nothing pending for this group; check if other groups are waiting for a slot
     this.drainWaiting();
   }
