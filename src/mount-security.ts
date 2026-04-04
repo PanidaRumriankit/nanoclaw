@@ -12,6 +12,7 @@ import path from 'path';
 import pino from 'pino';
 
 import { MOUNT_ALLOWLIST_PATH } from './config.js';
+import { recordMountRequest } from './metrics.js';
 import { AdditionalMount, AllowedRoot, MountAllowlist } from './types.js';
 
 const logger = pino({
@@ -352,6 +353,7 @@ export function validateAdditionalMounts(
     const result = validateMount(mount, isMain);
 
     if (result.allowed) {
+      recordMountRequest('allowed');
       validatedMounts.push({
         hostPath: result.realHostPath!,
         containerPath: `/workspace/extra/${result.resolvedContainerPath}`,
@@ -369,6 +371,7 @@ export function validateAdditionalMounts(
         'Mount validated successfully',
       );
     } else {
+      recordMountRequest('rejected');
       logger.warn(
         {
           group: groupName,
