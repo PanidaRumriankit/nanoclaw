@@ -60,6 +60,7 @@ beforeEach(() => {
       // Mock the fs.mkdirSync that registerGroup does
     },
     syncGroups: async () => {},
+    joinGroup: async () => 'new-jid@g.us',
     getAvailableGroups: () => [],
     writeGroupsSnapshot: () => {},
   };
