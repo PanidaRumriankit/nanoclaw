@@ -102,6 +102,20 @@ const errorsTotal = new Counter({
   registers: [registry],
 });
 
+const ipcAuthFailuresTotal = new Counter<'source_group'>({
+  name: 'nanoclaw_ipc_auth_failures_total',
+  help: 'Failed IPC authorization attempts.',
+  labelNames: ['source_group'],
+  registers: [registry],
+});
+
+const mountRequestsTotal = new Counter<'status'>({
+  name: 'nanoclaw_mount_requests_total',
+  help: 'Total additional mount requests evaluated.',
+  labelNames: ['status'],
+  registers: [registry],
+});
+
 registeredGroupsGauge.set(0);
 activeContainersGauge.set(0);
 agentRunsTotal.inc({ kind: 'message', status: 'error' }, 0);
@@ -109,6 +123,9 @@ agentRunsTotal.inc({ kind: 'message', status: 'success' }, 0);
 agentRunsTotal.inc({ kind: 'scheduled_task', status: 'error' }, 0);
 agentRunsTotal.inc({ kind: 'scheduled_task', status: 'success' }, 0);
 errorsTotal.inc(0);
+ipcAuthFailuresTotal.inc({ source_group: 'system' }, 0);
+mountRequestsTotal.inc({ status: 'allowed' }, 0);
+mountRequestsTotal.inc({ status: 'rejected' }, 0);
 
 let networkUsageTrackingInstalled = false;
 const trackedSockets = new WeakSet<net.Socket>();
@@ -150,6 +167,14 @@ export function setQueueDepth(groupJid: string, depth: number): void {
 
 export function recordError(): void {
   errorsTotal.inc();
+}
+
+export function recordIpcAuthFailure(sourceGroup: string): void {
+  ipcAuthFailuresTotal.inc({ source_group: sourceGroup });
+}
+
+export function recordMountRequest(status: 'allowed' | 'rejected'): void {
+  mountRequestsTotal.inc({ status });
 }
 
 export function renderMetrics(): Promise<string> {

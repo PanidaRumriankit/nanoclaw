@@ -8,6 +8,7 @@ import { AvailableGroup } from './container-runner.js';
 import { createTask, deleteTask, getTaskById, updateTask } from './db.js';
 import { isValidGroupFolder } from './group-folder.js';
 import { logger } from './logger.js';
+import { recordIpcAuthFailure } from './metrics.js';
 import { RegisteredGroup } from './types.js';
 
 export interface IpcDeps {
@@ -91,6 +92,7 @@ export function startIpcWatcher(deps: IpcDeps): void {
                     { chatJid: data.chatJid, sourceGroup },
                     'Unauthorized IPC message attempt blocked',
                   );
+                  recordIpcAuthFailure(sourceGroup);
                 }
               }
               fs.unlinkSync(filePath);
@@ -208,6 +210,7 @@ export async function processTaskIpc(
             { sourceGroup, targetFolder },
             'Unauthorized schedule_task attempt blocked',
           );
+          recordIpcAuthFailure(sourceGroup);
           break;
         }
 
@@ -289,6 +292,7 @@ export async function processTaskIpc(
             { taskId: data.taskId, sourceGroup },
             'Unauthorized task pause attempt',
           );
+          recordIpcAuthFailure(sourceGroup);
         }
       }
       break;
@@ -307,6 +311,7 @@ export async function processTaskIpc(
             { taskId: data.taskId, sourceGroup },
             'Unauthorized task resume attempt',
           );
+          recordIpcAuthFailure(sourceGroup);
         }
       }
       break;
@@ -325,6 +330,7 @@ export async function processTaskIpc(
             { taskId: data.taskId, sourceGroup },
             'Unauthorized task cancel attempt',
           );
+          recordIpcAuthFailure(sourceGroup);
         }
       }
       break;
@@ -344,6 +350,7 @@ export async function processTaskIpc(
             { taskId: data.taskId, sourceGroup },
             'Unauthorized task update attempt',
           );
+          recordIpcAuthFailure(sourceGroup);
           break;
         }
 
@@ -414,6 +421,7 @@ export async function processTaskIpc(
           { sourceGroup },
           'Unauthorized refresh_groups attempt blocked',
         );
+        recordIpcAuthFailure(sourceGroup);
       }
       break;
 
@@ -424,6 +432,7 @@ export async function processTaskIpc(
           { sourceGroup },
           'Unauthorized register_group attempt blocked',
         );
+        recordIpcAuthFailure(sourceGroup);
         break;
       }
       if (data.jid && data.name && data.folder && data.trigger) {
@@ -455,6 +464,7 @@ export async function processTaskIpc(
       // Only main group can join new groups via invite
       if (!isMain) {
         logger.warn({ sourceGroup }, 'Unauthorized join_group attempt blocked');
+        recordIpcAuthFailure(sourceGroup);
         break;
       }
       if (data.invite) {
