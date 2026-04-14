@@ -344,7 +344,8 @@ async function runAgent(
 
     if (AGENT_RUNNER_URL) {
       // Remote mode: call Agent Runner service via HTTP
-      const { runContainerAgentRemote } = await import('./agent-runner-client.js');
+      const { runContainerAgentRemote } =
+        await import('./agent-runner-client.js');
       output = await runContainerAgentRemote(
         { name: group.name, folder: group.folder, isMain: group.isMain },
         {
@@ -518,9 +519,9 @@ function recoverPendingMessages(): void {
 }
 
 function ensureContainerSystemRunning(): void {
-  // In decomposed mode, the orchestrator handles container operations.
-  // The monolith doesn't need a container runtime.
-  if (!process.env.API_GATEWAY_URL) {
+  // When using remote agent runner, the monolith doesn't need Docker locally.
+  // The agent runner service handles container operations.
+  if (!AGENT_RUNNER_URL) {
     ensureContainerRuntimeRunning();
     cleanupOrphans();
   }
@@ -685,43 +686,63 @@ async function main(): Promise<void> {
     process.exit(1);
   }
 
-  // In decomposed mode (API_GATEWAY_URL set), the orchestrator and scheduler
-  // services own message processing and task execution. The monolith becomes
-  // a thin data layer: DB + channels + Core API.
-  //
-  // In monolith mode (no API_GATEWAY_URL), the monolith owns everything.
-  const isDecomposed = !!API_GATEWAY_URL;
-
-  if (isDecomposed) {
-    logger.info(
-      'Decomposed mode: message loop, scheduler, and agent execution handled by services',
-    );
-    // Services (orchestrator, scheduler) handle processing — monolith just stores data and routes
-  } else {
-    // Monolith mode: start all subsystems locally
-    startSchedulerLoop({
-      registeredGroups: () => registeredGroups,
-      getSessions: () => sessions,
-      queue,
-      onProcess: (groupJid, proc, containerName, groupFolder) =>
-        queue.registerProcess(groupJid, proc, containerName, groupFolder),
-      sendMessage: async (jid, rawText) => {
-        const channel = findChannel(channels, jid);
-        if (!channel) {
-          logger.warn({ jid }, 'No channel owns JID, cannot send message');
-          return;
-        }
-        const text = formatOutbound(rawText);
-        if (text) await channel.sendMessage(jid, text);
-      },
-    });
-    queue.setProcessMessagesFn(processGroupMessages);
-    recoverPendingMessages();
-    startMessageLoop().catch((err) => {
-      logger.fatal({ err }, 'Message loop crashed unexpectedly');
-      process.exit(1);
-    });
+  // Always start message loop and scheduler — the monolith owns these.
+  // AGENT_RUNNER_URL only changes WHERE containers run (local vs remote),
+  // not whether messages get processed.
+  if (AGENT_RUNNER_URL) {
+    logger.info({ agentRunnerUrl: AGENT_RUNNER_URL }, 'Agent execution delegated to remote service');
   }
+
+  startSchedulerLoop({
+    registeredGroups: () => registeredGroups,
+    getSessions: () => sessions,
+    queue,
+    onProcess: (groupJid, proc, containerName, groupFolder) =>
+      queue.registerProcess(groupJid, proc, containerName, groupFolder),
+    sendMessage: async (jid, rawText) => {
+      const channel = findChannel(channels, jid);
+      if (!channel) {
+        logger.warn({ jid }, 'No channel owns JID, cannot send message');
+        return;
+      }
+      const text = formatOutbound(rawText);
+      if (text) await channel.sendMessage(jid, text);
+    },
+  });
+  startIpcWatcher({
+    sendMessage: (jid, text) => {
+      const channel = findChannel(channels, jid);
+      if (!channel) throw new Error(`No channel for JID: ${jid}`);
+      return channel.sendMessage(jid, text);
+    },
+    registeredGroups: () => registeredGroups,
+    registerGroup,
+    syncGroups: async (force: boolean) => {
+      await Promise.all(
+        channels
+          .filter((ch) => ch.syncGroups)
+          .map((ch) => ch.syncGroups!(force)),
+      );
+    },
+    joinGroup: async (invite: string) => {
+      const channel =
+        channels.find((ch) => ch.name === 'whatsapp') ||
+        channels.find((ch) => ch.name === 'api-gateway');
+      if (!channel?.joinGroup) {
+        throw new Error('WhatsApp channel or joinGroup not available');
+      }
+      return channel.joinGroup(invite);
+    },
+    getAvailableGroups,
+    writeGroupsSnapshot: (gf, im, ag, rj) =>
+      writeGroupsSnapshot(gf, im, ag, rj),
+  });
+  queue.setProcessMessagesFn(processGroupMessages);
+  recoverPendingMessages();
+  startMessageLoop().catch((err) => {
+    logger.fatal({ err }, 'Message loop crashed unexpectedly');
+    process.exit(1);
+  });
 }
 
 // Guard: only run when executed directly, not when imported by tests
