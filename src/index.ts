@@ -2,6 +2,7 @@ import fs from 'fs';
 import path from 'path';
 
 import {
+  AGENT_RUNNER_URL,
   ASSISTANT_NAME,
   CORE_API_HOST,
   CORE_API_PORT,
@@ -339,20 +340,39 @@ async function runAgent(
     : undefined;
 
   try {
-    const output = await runContainerAgent(
-      group,
-      {
-        prompt,
-        sessionId,
-        groupFolder: group.folder,
-        chatJid,
-        isMain,
-        assistantName: ASSISTANT_NAME,
-      },
-      (proc, containerName) =>
-        queue.registerProcess(chatJid, proc, containerName, group.folder),
-      wrappedOnOutput,
-    );
+    let output: ContainerOutput;
+
+    if (AGENT_RUNNER_URL) {
+      // Remote mode: call Agent Runner service via HTTP
+      const { runContainerAgentRemote } = await import('./agent-runner-client.js');
+      output = await runContainerAgentRemote(
+        { name: group.name, folder: group.folder, isMain: group.isMain },
+        {
+          prompt,
+          sessionId,
+          groupFolder: group.folder,
+          chatJid,
+          isMain,
+          assistantName: ASSISTANT_NAME,
+        },
+      );
+    } else {
+      // Local mode: run container directly
+      output = await runContainerAgent(
+        group,
+        {
+          prompt,
+          sessionId,
+          groupFolder: group.folder,
+          chatJid,
+          isMain,
+          assistantName: ASSISTANT_NAME,
+        },
+        (proc, containerName) =>
+          queue.registerProcess(chatJid, proc, containerName, group.folder),
+        wrappedOnOutput,
+      );
+    }
 
     if (output.newSessionId) {
       sessions[group.folder] = output.newSessionId;
@@ -621,8 +641,14 @@ async function main(): Promise<void> {
   // Note: if API_GATEWAY_URL is set, we skip local physical channels to avoid session conflicts
   // with the gateways running in Docker.
   for (const channelName of getRegisteredChannelNames()) {
-    if (API_GATEWAY_URL && (channelName === 'whatsapp' || channelName === 'telegram')) {
-      logger.info({ channel: channelName }, 'Skipping local channel in decomposed mode (handled by API Gateway)');
+    if (
+      API_GATEWAY_URL &&
+      (channelName === 'whatsapp' || channelName === 'telegram')
+    ) {
+      logger.info(
+        { channel: channelName },
+        'Skipping local channel in decomposed mode (handled by API Gateway)',
+      );
       continue;
     }
     const factory = getChannelFactory(channelName)!;
@@ -667,7 +693,9 @@ async function main(): Promise<void> {
   const isDecomposed = !!API_GATEWAY_URL;
 
   if (isDecomposed) {
-    logger.info('Decomposed mode: message loop, scheduler, and agent execution handled by services');
+    logger.info(
+      'Decomposed mode: message loop, scheduler, and agent execution handled by services',
+    );
     // Services (orchestrator, scheduler) handle processing — monolith just stores data and routes
   } else {
     // Monolith mode: start all subsystems locally

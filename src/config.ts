@@ -16,6 +16,9 @@ const envConfig = readEnvFile([
   'PROMETHEUS_HOST',
   'PROMETHEUS_PORT',
   'LOKI_URL',
+  'API_GATEWAY_URL',
+  'CORE_API_PORT',
+  'CORE_API_HOST',
 ]);
 
 export const ASSISTANT_NAME =
@@ -85,6 +88,19 @@ export const PROMETHEUS_PORT = parseOptionalPositiveInt(
   process.env.PROMETHEUS_PORT || envConfig.PROMETHEUS_PORT,
 );
 export const LOKI_URL = process.env.LOKI_URL || envConfig.LOKI_URL || '';
+export const API_GATEWAY_URL =
+  process.env.API_GATEWAY_URL || envConfig.API_GATEWAY_URL || '';
+export const CORE_API_PORT = parseInt(
+  process.env.CORE_API_PORT || envConfig.CORE_API_PORT || '4001',
+  10,
+);
+export const CORE_API_HOST =
+  process.env.CORE_API_HOST || envConfig.CORE_API_HOST || '127.0.0.1';
+export const AGENT_RUNNER_URL =
+  process.env.AGENT_RUNNER_URL || '';
+
+/** Config object for agent-runner-client.ts */
+export const AgentRunnerConfig = { url: AGENT_RUNNER_URL };
 export const IPC_POLL_INTERVAL = 1000;
 export const IDLE_TIMEOUT = parseInt(process.env.IDLE_TIMEOUT || '1800000', 10); // 30min default — how long to keep container alive after last result
 export const MAX_CONCURRENT_CONTAINERS = Math.max(
