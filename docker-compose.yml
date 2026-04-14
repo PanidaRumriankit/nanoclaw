@@ -1,14 +1,15 @@
-# NanoClaw Service Mesh
-# Monolith runs on host. Extracted services run in Docker.
+# NanoClaw Option B — Event-driven microservices
 #
-# Option B architecture:
-# - Monolith (host) = DB + message loop + scheduler + channels
-# - WhatsApp Gateway (Docker) = Baileys WebSocket (has real boundary)
-# - Agent Runner (Docker) = stateless container executor (can scale)
+# Monolith (host) owns: DB, message loop, scheduler, channels
+# WhatsApp Gateway (Docker) owns: Baileys WebSocket connection
+# Agent Runner (Docker) owns: stateless container execution
 #
 # Usage:
 #   docker compose up -d          # start services
 #   docker compose down           # stop services
+#
+# Start monolith separately:
+#   AGENT_RUNNER_URL=http://localhost:4005 node dist/index.js
 
 services:
   # ─── WhatsApp Gateway ───
@@ -47,9 +48,7 @@ services:
       - LOG_LEVEL=${LOG_LEVEL:-info}
       - TZ=${TZ:-UTC}
     volumes:
-      # Project root — for container mount operations
       - .:/app/project:rw
-      # Docker socket — for spawning agent containers
       - /var/run/docker.sock:/var/run/docker.sock
     networks:
       - nanoclaw
