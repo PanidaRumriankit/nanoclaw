@@ -1,15 +1,120 @@
-# NanoClaw Observability Stack
-# Prometheus + Grafana + Loki for metrics, dashboards, and log aggregation.
+# NanoClaw Service Mesh + Observability Stack
+# Services: Traefik, API Gateway, WhatsApp Gateway, Orchestrator, Scheduler, Prometheus, Grafana, Loki
 #
 # Usage:
 #   docker compose up -d          # start all services
 #   docker compose down           # stop all services
 #   docker compose down -v        # stop and remove data volumes
 #
-# NanoClaw runs on the host (not in Docker). The Prometheus container
-# scrapes the host metrics endpoint via host.docker.internal.
+# NanoClaw Core (monolith) runs on the host. Services reach it via host.docker.internal.
+# The project root is bind-mounted into orchestrator/scheduler for database + filesystem access.
 
 services:
+  # ─── Reverse Proxy ───
+  traefik:
+    image: traefik:v3.3
+    container_name: nanoclaw-traefik
+    restart: unless-stopped
+    ports:
+      - "${TRAEFIK_PORT:-80}:80"
+      - "${TRAEFIK_DASHBOARD_PORT:-8080}:8080"
+    volumes:
+      - ./observability/traefik/traefik.yml:/etc/traefik/traefik.yml:ro
+      - ./observability/traefik/dynamic.yml:/etc/traefik/dynamic.yml:ro
+    networks:
+      - nanoclaw-observability
+
+  # ─── API Gateway ───
+  api-gateway:
+    build: ./services/api-gateway
+    container_name: nanoclaw-api-gateway
+    restart: unless-stopped
+    ports:
+      - "${API_GATEWAY_PORT:-4000}:4000"
+    environment:
+      - CORE_SERVICE_URL=http://host.docker.internal:${CORE_API_PORT:-4001}
+      - WHATSAPP_GATEWAY_URL=http://nanoclaw-whatsapp-gateway:4002
+      - ORCHESTRATOR_URL=http://nanoclaw-orchestrator:4003
+      - SCHEDULER_URL=http://nanoclaw-scheduler:4004
+      - LOG_LEVEL=${LOG_LEVEL:-info}
+    networks:
+      - nanoclaw-observability
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+
+  # ─── WhatsApp Gateway ───
+  whatsapp-gateway:
+    build: ./services/whatsapp-gateway
+    container_name: nanoclaw-whatsapp-gateway
+    restart: unless-stopped
+    ports:
+      - "${WHATSAPP_GATEWAY_PORT:-4002}:4002"
+    environment:
+      - API_GATEWAY_URL=http://nanoclaw-api-gateway:4000
+      - ASSISTANT_NAME=${ASSISTANT_NAME:-Andy}
+      - ASSISTANT_HAS_OWN_NUMBER=${ASSISTANT_HAS_OWN_NUMBER:-false}
+      - LOG_LEVEL=${LOG_LEVEL:-info}
+    volumes:
+      - ./store/auth:/app/store/auth
+    depends_on:
+      - api-gateway
+    networks:
+      - nanoclaw-observability
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+
+  # ─── Orchestrator ───
+  orchestrator:
+    build: ./services/orchestrator
+    container_name: nanoclaw-orchestrator
+    restart: unless-stopped
+    ports:
+      - "${ORCHESTRATOR_PORT:-4003}:4003"
+    environment:
+      - PROJECT_ROOT=/app/project
+      - CORE_SERVICE_URL=http://host.docker.internal:${CORE_API_PORT:-4001}
+      - ASSISTANT_NAME=${ASSISTANT_NAME:-Andy}
+      - ASSISTANT_HAS_OWN_NUMBER=${ASSISTANT_HAS_OWN_NUMBER:-false}
+      - CONTAINER_IMAGE=${CONTAINER_IMAGE:-nanoclaw-agent:latest}
+      - CONTAINER_TIMEOUT=${CONTAINER_TIMEOUT:-1800000}
+      - CREDENTIAL_PROXY_PORT=${CREDENTIAL_PROXY_PORT:-3001}
+      - HOST_GATEWAY=host.docker.internal
+      - LOG_LEVEL=${LOG_LEVEL:-info}
+      - TZ=${TZ:-UTC}
+    volumes:
+      # Project root — for container mount operations (groups, data, etc.)
+      - .:/app/project:rw
+      # Docker socket — for spawning agent containers
+      - /var/run/docker.sock:/var/run/docker.sock
+    depends_on:
+      - api-gateway
+    networks:
+      - nanoclaw-observability
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+
+  # ─── Scheduler ───
+  scheduler:
+    build: ./services/scheduler
+    container_name: nanoclaw-scheduler
+    restart: unless-stopped
+    ports:
+      - "${SCHEDULER_PORT:-4004}:4004"
+    environment:
+      - CORE_SERVICE_URL=http://host.docker.internal:${CORE_API_PORT:-4001}
+      - ASSISTANT_NAME=${ASSISTANT_NAME:-Andy}
+      - ORCHESTRATOR_URL=http://nanoclaw-orchestrator:4003
+      - SCHEDULER_POLL_INTERVAL=${SCHEDULER_POLL_INTERVAL:-60000}
+      - LOG_LEVEL=${LOG_LEVEL:-info}
+      - TZ=${TZ:-UTC}
+    depends_on:
+      - orchestrator
+    networks:
+      - nanoclaw-observability
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+
+  # ─── Observability ───
   prometheus:
     image: prom/prometheus:latest
     container_name: nanoclaw-prometheus
@@ -48,8 +153,8 @@ services:
       - "${GRAFANA_PORT:-3000}:3000"
     environment:
       - GF_SECURITY_ADMIN_USER=admin
-      - GF_SECURITY_ADMIN_PASSWORD=nanoclaw
-      - GF_AUTH_ANONYMOUS_ENABLED=true
+      - GF_SECURITY_ADMIN_PASSWORD=***
+      - GF_AUTH_ANONYMOUS_ENABLED=false
       - GF_AUTH_ANONYMOUS_ORG_ROLE=Viewer
       - GF_DASHBOARDS_DEFAULT_HOME_DASHBOARD_PATH=/var/lib/grafana/dashboards/operational-overview.json
     volumes:
