@@ -138,7 +138,10 @@ export class ApiChannel implements Channel {
       if (result.status >= 200 && result.status < 300) {
         this._connected = true;
         recordSentMessage();
-        logger.info({ jid, length: text.length }, 'Message sent via API Gateway');
+        logger.info(
+          { jid, length: text.length },
+          'Message sent via API Gateway',
+        );
       } else {
         logger.error(
           { jid, status: result.status, body: result.data },

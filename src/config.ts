@@ -96,8 +96,7 @@ export const CORE_API_PORT = parseInt(
 );
 export const CORE_API_HOST =
   process.env.CORE_API_HOST || envConfig.CORE_API_HOST || '127.0.0.1';
-export const AGENT_RUNNER_URL =
-  process.env.AGENT_RUNNER_URL || '';
+export const AGENT_RUNNER_URL = process.env.AGENT_RUNNER_URL || '';
 
 /** Config object for agent-runner-client.ts */
 export const AgentRunnerConfig = { url: AGENT_RUNNER_URL };

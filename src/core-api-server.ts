@@ -125,11 +125,7 @@ function readBody(req: IncomingMessage): Promise<string> {
   });
 }
 
-function jsonResponse(
-  res: ServerResponse,
-  status: number,
-  body: object,
-): void {
+function jsonResponse(res: ServerResponse, status: number, body: object): void {
   res.writeHead(status, { 'Content-Type': 'application/json' });
   res.end(JSON.stringify(body));
 }
@@ -169,9 +165,7 @@ export function startCoreApiServer(
 
         // ─── Inbound message (from WhatsApp Gateway) ───
         if (url === '/api/v1/messages/inbound' && method === 'POST') {
-          const body = JSON.parse(
-            await readBody(req),
-          ) as InboundMessageRequest;
+          const body = JSON.parse(await readBody(req)) as InboundMessageRequest;
 
           deps.onMessage(body.chatJid, {
             id: body.id,
@@ -190,9 +184,7 @@ export function startCoreApiServer(
 
         // ─── Chat metadata (from WhatsApp Gateway) ───
         if (url === '/api/v1/chat-metadata' && method === 'POST') {
-          const body = JSON.parse(
-            await readBody(req),
-          ) as ChatMetadataRequest;
+          const body = JSON.parse(await readBody(req)) as ChatMetadataRequest;
 
           deps.onChatMetadata(
             body.chatJid,
@@ -371,10 +363,7 @@ export function startCoreApiServer(
     });
 
     server.listen(port, host, () => {
-      logger.info(
-        { host, port, path: '/api/v1/*' },
-        'Core API server started',
-      );
+      logger.info({ host, port, path: '/api/v1/*' }, 'Core API server started');
       resolve(server);
     });
 

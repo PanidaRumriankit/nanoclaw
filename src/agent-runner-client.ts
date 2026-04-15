@@ -34,7 +34,9 @@ export async function runContainerAgentRemote(
         res.on('data', (c) => chunks.push(c));
         res.on('end', () => {
           try {
-            const result = JSON.parse(Buffer.concat(chunks).toString()) as ContainerOutput;
+            const result = JSON.parse(
+              Buffer.concat(chunks).toString(),
+            ) as ContainerOutput;
             resolve(result);
           } catch (err) {
             reject(new Error('Failed to parse Agent Runner response'));
@@ -50,7 +52,11 @@ export async function runContainerAgentRemote(
 
     req.on('timeout', () => {
       req.destroy();
-      resolve({ status: 'error', result: null, error: 'Agent Runner request timed out' });
+      resolve({
+        status: 'error',
+        result: null,
+        error: 'Agent Runner request timed out',
+      });
     });
 
     req.write(payload);

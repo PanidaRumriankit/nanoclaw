@@ -690,7 +690,10 @@ async function main(): Promise<void> {
   // AGENT_RUNNER_URL only changes WHERE containers run (local vs remote),
   // not whether messages get processed.
   if (AGENT_RUNNER_URL) {
-    logger.info({ agentRunnerUrl: AGENT_RUNNER_URL }, 'Agent execution delegated to remote service');
+    logger.info(
+      { agentRunnerUrl: AGENT_RUNNER_URL },
+      'Agent execution delegated to remote service',
+    );
   }
 
   startSchedulerLoop({
