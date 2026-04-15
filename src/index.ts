@@ -2,8 +2,12 @@ import fs from 'fs';
 import path from 'path';
 
 import {
+  AGENT_RUNNER_URL,
   ASSISTANT_NAME,
+  CORE_API_HOST,
+  CORE_API_PORT,
   CREDENTIAL_PROXY_PORT,
+  API_GATEWAY_URL,
   IDLE_TIMEOUT,
   POLL_INTERVAL,
   PROMETHEUS_HOST,
@@ -33,16 +37,20 @@ import {
   getAllRegisteredGroups,
   getAllSessions,
   getAllTasks,
+  getDueTasks,
   getMessagesSince,
   getNewMessages,
   getRegisteredGroup,
   getRouterState,
   initDatabase,
+  logTaskRun,
   setRegisteredGroup,
   setRouterState,
   setSession,
   storeChatMetadata,
   storeMessage,
+  updateTask,
+  updateTaskAfterRun,
 } from './db.js';
 import { GroupQueue } from './group-queue.js';
 import { resolveGroupFolderPath } from './group-folder.js';
@@ -65,6 +73,11 @@ import {
   setQueueDepth,
   startMetricsServer,
 } from './metrics.js';
+import { startCoreApiServer } from './core-api-server.js';
+import { ApiChannel } from './api-channel.js';
+
+// ─── Core API configuration (for decomposed architecture) ───
+// These are now imported from config.js
 
 // Re-export for backwards compatibility during refactor
 export { escapeXml, formatMessages } from './router.js';
@@ -327,20 +340,40 @@ async function runAgent(
     : undefined;
 
   try {
-    const output = await runContainerAgent(
-      group,
-      {
-        prompt,
-        sessionId,
-        groupFolder: group.folder,
-        chatJid,
-        isMain,
-        assistantName: ASSISTANT_NAME,
-      },
-      (proc, containerName) =>
-        queue.registerProcess(chatJid, proc, containerName, group.folder),
-      wrappedOnOutput,
-    );
+    let output: ContainerOutput;
+
+    if (AGENT_RUNNER_URL) {
+      // Remote mode: call Agent Runner service via HTTP
+      const { runContainerAgentRemote } =
+        await import('./agent-runner-client.js');
+      output = await runContainerAgentRemote(
+        { name: group.name, folder: group.folder, isMain: group.isMain },
+        {
+          prompt,
+          sessionId,
+          groupFolder: group.folder,
+          chatJid,
+          isMain,
+          assistantName: ASSISTANT_NAME,
+        },
+      );
+    } else {
+      // Local mode: run container directly
+      output = await runContainerAgent(
+        group,
+        {
+          prompt,
+          sessionId,
+          groupFolder: group.folder,
+          chatJid,
+          isMain,
+          assistantName: ASSISTANT_NAME,
+        },
+        (proc, containerName) =>
+          queue.registerProcess(chatJid, proc, containerName, group.folder),
+        wrappedOnOutput,
+      );
+    }
 
     if (output.newSessionId) {
       sessions[group.folder] = output.newSessionId;
@@ -486,8 +519,12 @@ function recoverPendingMessages(): void {
 }
 
 function ensureContainerSystemRunning(): void {
-  ensureContainerRuntimeRunning();
-  cleanupOrphans();
+  // When using remote agent runner, the monolith doesn't need Docker locally.
+  // The agent runner service handles container operations.
+  if (!AGENT_RUNNER_URL) {
+    ensureContainerRuntimeRunning();
+    cleanupOrphans();
+  }
 }
 
 async function main(): Promise<void> {
@@ -507,10 +544,83 @@ async function main(): Promise<void> {
       ? null
       : await startMetricsServer(PROMETHEUS_PORT, PROMETHEUS_HOST);
 
+  // Channel callbacks (shared by all channels and the Core API server)
+  const onMessage = (chatJid: string, msg: NewMessage) => {
+    // Sender allowlist drop mode: discard messages from denied senders before storing
+    if (!msg.is_from_me && !msg.is_bot_message && registeredGroups[chatJid]) {
+      const cfg = loadSenderAllowlist();
+      if (
+        shouldDropMessage(chatJid, cfg) &&
+        !isSenderAllowed(chatJid, msg.sender, cfg)
+      ) {
+        if (cfg.logDenied) {
+          logger.debug(
+            { chatJid, sender: msg.sender },
+            'sender-allowlist: dropping message (drop mode)',
+          );
+        }
+        return;
+      }
+    }
+    recordStoredMessage();
+    storeMessage(msg);
+  };
+  const onChatMetadata = (
+    chatJid: string,
+    timestamp: string,
+    name?: string,
+    channel?: string,
+    isGroup?: boolean,
+  ) => storeChatMetadata(chatJid, timestamp, name, channel, isGroup);
+
+  // Start Core API server for decomposed architecture
+  // (receives inbound messages from API Gateway and serves data to services)
+  let coreApiServer: import('http').Server | null = null;
+  if (CORE_API_PORT > 0) {
+    coreApiServer = await startCoreApiServer(CORE_API_PORT, CORE_API_HOST, {
+      onMessage,
+      onChatMetadata,
+      registeredGroups: () => registeredGroups,
+      // Data endpoints — services call these instead of touching SQLite directly
+      sendMessage: async (jid, text) => {
+        const channel = findChannel(channels, jid);
+        if (!channel) {
+          logger.warn({ jid }, 'No channel owns JID, cannot send message');
+          return;
+        }
+        await channel.sendMessage(jid, text);
+      },
+      getAllChats: () =>
+        getAllChats().map((c) => ({ ...c, is_group: !!c.is_group })),
+      getNewMessages: (jids, since, assistantName) =>
+        getNewMessages(jids, since, assistantName),
+      getMessagesSince: (chatJid, since, assistantName) =>
+        getMessagesSince(chatJid, since, assistantName),
+      getAllSessions: () => getAllSessions(),
+      setSession: (groupFolder, sessionId) =>
+        setSession(groupFolder, sessionId),
+      getRouterState: (key) => getRouterState(key) ?? null,
+      setRouterState: (key, value) => setRouterState(key, value),
+      getAllTasks: () => getAllTasks(),
+      getDueTasks: () => getDueTasks(),
+      updateTask: (id, updates) => updateTask(id, updates),
+      updateTaskAfterRun: (id, nextRun, resultSummary) =>
+        updateTaskAfterRun(id, nextRun, resultSummary),
+      logTaskRun: (log) => logTaskRun(log),
+      getAvailableGroups: () => getAvailableGroups(),
+      getSessions: () => sessions,
+    });
+    logger.info(
+      { port: CORE_API_PORT, host: CORE_API_HOST },
+      'Core API server started for decomposed architecture',
+    );
+  }
+
   // Graceful shutdown handlers
   const shutdown = async (signal: string) => {
     logger.info({ signal }, 'Shutdown signal received');
     metricsServer?.close();
+    coreApiServer?.close();
     proxyServer.close();
     await queue.shutdown(10000);
     for (const ch of channels) await ch.disconnect();
@@ -521,40 +631,27 @@ async function main(): Promise<void> {
 
   // Channel callbacks (shared by all channels)
   const channelOpts = {
-    onMessage: (chatJid: string, msg: NewMessage) => {
-      // Sender allowlist drop mode: discard messages from denied senders before storing
-      if (!msg.is_from_me && !msg.is_bot_message && registeredGroups[chatJid]) {
-        const cfg = loadSenderAllowlist();
-        if (
-          shouldDropMessage(chatJid, cfg) &&
-          !isSenderAllowed(chatJid, msg.sender, cfg)
-        ) {
-          if (cfg.logDenied) {
-            logger.debug(
-              { chatJid, sender: msg.sender },
-              'sender-allowlist: dropping message (drop mode)',
-            );
-          }
-          return;
-        }
-      }
-      recordStoredMessage();
-      storeMessage(msg);
-    },
-    onChatMetadata: (
-      chatJid: string,
-      timestamp: string,
-      name?: string,
-      channel?: string,
-      isGroup?: boolean,
-    ) => storeChatMetadata(chatJid, timestamp, name, channel, isGroup),
+    onMessage,
+    onChatMetadata,
     registeredGroups: () => registeredGroups,
   };
 
   // Create and connect all registered channels.
   // Each channel self-registers via the barrel import above.
   // Factories return null when credentials are missing, so unconfigured channels are skipped.
+  // Note: if API_GATEWAY_URL is set, we skip local physical channels to avoid session conflicts
+  // with the gateways running in Docker.
   for (const channelName of getRegisteredChannelNames()) {
+    if (
+      API_GATEWAY_URL &&
+      (channelName === 'whatsapp' || channelName === 'telegram')
+    ) {
+      logger.info(
+        { channel: channelName },
+        'Skipping local channel in decomposed mode (handled by API Gateway)',
+      );
+      continue;
+    }
     const factory = getChannelFactory(channelName)!;
     const channel = factory(channelOpts);
     if (!channel) {
@@ -567,12 +664,38 @@ async function main(): Promise<void> {
     channels.push(channel);
     await channel.connect();
   }
+
+  // If API_GATEWAY_URL is set, add the API Channel for decomposed routing.
+  // This allows the Core Service to route messages through the API Gateway
+  // to the WhatsApp Gateway (or any future gateway) without direct Baileys.
+  if (API_GATEWAY_URL) {
+    const apiChannel = new ApiChannel({
+      apiGatewayUrl: API_GATEWAY_URL,
+      jidSuffixes: ['@g.us', '@s.whatsapp.net'],
+    });
+    await apiChannel.connect();
+    channels.push(apiChannel);
+    logger.info(
+      { url: API_GATEWAY_URL },
+      'API Channel connected for decomposed routing',
+    );
+  }
+
   if (channels.length === 0) {
     logger.fatal('No channels connected');
     process.exit(1);
   }
 
-  // Start subsystems (independently of connection handler)
+  // Always start message loop and scheduler — the monolith owns these.
+  // AGENT_RUNNER_URL only changes WHERE containers run (local vs remote),
+  // not whether messages get processed.
+  if (AGENT_RUNNER_URL) {
+    logger.info(
+      { agentRunnerUrl: AGENT_RUNNER_URL },
+      'Agent execution delegated to remote service',
+    );
+  }
+
   startSchedulerLoop({
     registeredGroups: () => registeredGroups,
     getSessions: () => sessions,
@@ -605,7 +728,9 @@ async function main(): Promise<void> {
       );
     },
     joinGroup: async (invite: string) => {
-      const channel = channels.find((ch) => ch.name === 'whatsapp');
+      const channel =
+        channels.find((ch) => ch.name === 'whatsapp') ||
+        channels.find((ch) => ch.name === 'api-gateway');
       if (!channel?.joinGroup) {
         throw new Error('WhatsApp channel or joinGroup not available');
       }

@@ -1,15 +1,61 @@
-# NanoClaw Observability Stack
-# Prometheus + Grafana + Loki for metrics, dashboards, and log aggregation.
+# NanoClaw Option B — Event-driven microservices
+#
+# Monolith (host) owns: DB, message loop, scheduler, channels
+# WhatsApp Gateway (Docker) owns: Baileys WebSocket connection
+# Agent Runner (Docker) owns: stateless container execution
 #
 # Usage:
-#   docker compose up -d          # start all services
-#   docker compose down           # stop all services
-#   docker compose down -v        # stop and remove data volumes
+#   docker compose up -d          # start services
+#   docker compose down           # stop services
 #
-# NanoClaw runs on the host (not in Docker). The Prometheus container
-# scrapes the host metrics endpoint via host.docker.internal.
+# Start monolith separately:
+#   AGENT_RUNNER_URL=http://localhost:4005 node dist/index.js
 
 services:
+  # ─── WhatsApp Gateway ───
+  whatsapp-gateway:
+    build: ./services/whatsapp-gateway
+    container_name: nanoclaw-whatsapp-gateway
+    restart: unless-stopped
+    ports:
+      - "${WHATSAPP_GATEWAY_PORT:-4002}:4002"
+    environment:
+      - API_GATEWAY_URL=http://host.docker.internal:${CORE_API_PORT:-4001}
+      - ASSISTANT_NAME=${ASSISTANT_NAME:-Andy}
+      - ASSISTANT_HAS_OWN_NUMBER=${ASSISTANT_HAS_OWN_NUMBER:-false}
+      - LOG_LEVEL=${LOG_LEVEL:-info}
+    volumes:
+      - ./store/auth:/app/store/auth
+    networks:
+      - nanoclaw
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+
+  # ─── Agent Runner (stateless) ───
+  agent-runner:
+    build: ./services/agent-runner
+    container_name: nanoclaw-agent-runner
+    restart: unless-stopped
+    ports:
+      - "${AGENT_RUNNER_PORT:-4005}:4005"
+    environment:
+      - PROJECT_ROOT=/app/project
+      - ASSISTANT_NAME=${ASSISTANT_NAME:-Andy}
+      - CONTAINER_IMAGE=${CONTAINER_IMAGE:-nanoclaw-agent:latest}
+      - CONTAINER_TIMEOUT=${CONTAINER_TIMEOUT:-1800000}
+      - CREDENTIAL_PROXY_PORT=${CREDENTIAL_PROXY_PORT:-3001}
+      - HOST_GATEWAY=host.docker.internal
+      - LOG_LEVEL=${LOG_LEVEL:-info}
+      - TZ=${TZ:-UTC}
+    volumes:
+      - .:/app/project:rw
+      - /var/run/docker.sock:/var/run/docker.sock
+    networks:
+      - nanoclaw
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+
+  # ─── Observability (optional) ───
   prometheus:
     image: prom/prometheus:latest
     container_name: nanoclaw-prometheus
@@ -24,21 +70,9 @@ services:
       - "--storage.tsdb.retention.time=30d"
       - "--web.enable-lifecycle"
     networks:
-      - nanoclaw-observability
+      - nanoclaw
     extra_hosts:
       - "host.docker.internal:host-gateway"
-
-  loki:
-    image: grafana/loki:latest
-    container_name: nanoclaw-loki
-    restart: unless-stopped
-    ports:
-      - "3100:3100"
-    volumes:
-      - loki-data:/loki
-    command: -config.file=/etc/loki/local-config.yaml
-    networks:
-      - nanoclaw-observability
 
   grafana:
     image: grafana/grafana-oss:latest
@@ -48,25 +82,21 @@ services:
       - "${GRAFANA_PORT:-3000}:3000"
     environment:
       - GF_SECURITY_ADMIN_USER=admin
-      - GF_SECURITY_ADMIN_PASSWORD=nanoclaw
-      - GF_AUTH_ANONYMOUS_ENABLED=true
-      - GF_AUTH_ANONYMOUS_ORG_ROLE=Viewer
-      - GF_DASHBOARDS_DEFAULT_HOME_DASHBOARD_PATH=/var/lib/grafana/dashboards/operational-overview.json
+      - GF_SECURITY_ADMIN_PASSWORD=***
+      - GF_AUTH_ANONYMOUS_ENABLED=false
     volumes:
       - ./observability/grafana/provisioning:/etc/grafana/provisioning:ro
       - ./observability/grafana/dashboards:/var/lib/grafana/dashboards:ro
       - grafana-data:/var/lib/grafana
     depends_on:
       - prometheus
-      - loki
     networks:
-      - nanoclaw-observability
+      - nanoclaw
 
 volumes:
   prometheus-data:
-  loki-data:
   grafana-data:
 
 networks:
-  nanoclaw-observability:
+  nanoclaw:
     driver: bridge
