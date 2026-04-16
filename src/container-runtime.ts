@@ -96,7 +96,9 @@ export function ensureContainerRuntimeRunning(): void {
     console.error(
       '╚════════════════════════════════════════════════════════════════╝\n',
     );
-    throw new Error('Container runtime is required but failed to start');
+    throw new Error('Container runtime is required but failed to start', {
+      cause: err,
+    });
   }
 }
 
@@ -117,6 +119,8 @@ export function cleanupOrphans(): void {
             'nanoclaw-prometheus',
             'nanoclaw-grafana',
             'nanoclaw-loki',
+            'nanoclaw-api-gateway',
+            'nanoclaw-whatsapp-gateway',
           ].includes(n.replace(/['"]/g, '')),
       );
     for (const name of orphans) {
