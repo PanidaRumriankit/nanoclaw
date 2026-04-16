@@ -1,0 +1,3 @@
+misconfiguration:
+  skip-checks:
+    - DS0002
