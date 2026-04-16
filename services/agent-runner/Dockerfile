@@ -7,7 +7,7 @@ WORKDIR /app
 
 COPY package*.json ./
 
-RUN apt-get update && apt-get install -y git curl ca-certificates && \
+RUN apt-get update && apt-get install -y --no-install-recommends git curl ca-certificates && \
     curl -fsSL https://download.docker.com/linux/static/stable/x86_64/docker-27.5.1.tgz | tar xz && \
     mv docker/docker /usr/local/bin/docker && \
     rm -rf docker && \
