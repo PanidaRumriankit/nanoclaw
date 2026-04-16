@@ -2,7 +2,7 @@
 # Scans all project Dockerfiles and built images with Trivy for:
 #   - OS package vulnerabilities (CVEs)
 #   - Application library vulnerabilities
-#   - Misconfigurations in Dockerfiles
+#   - Misconfigurations in Dockerfiles and docker-compose
 #   - Secrets leakage
 
 name: "Docker Security Scan"
@@ -23,38 +23,11 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Scan agent container Dockerfile
+      - name: Scan all config files
         uses: aquasecurity/trivy-action@0.35.0
         with:
           scan-type: config
-          scan-ref: container/Dockerfile
-          format: table
-          exit-code: "1"
-          severity: "CRITICAL,HIGH"
-
-      - name: Scan WhatsApp gateway Dockerfile
-        uses: aquasecurity/trivy-action@0.35.0
-        with:
-          scan-type: config
-          scan-ref: services/whatsapp-gateway/Dockerfile
-          format: table
-          exit-code: "1"
-          severity: "CRITICAL,HIGH"
-
-      - name: Scan agent-runner service Dockerfile
-        uses: aquasecurity/trivy-action@0.35.0
-        with:
-          scan-type: config
-          scan-ref: services/agent-runner/Dockerfile
-          format: table
-          exit-code: "1"
-          severity: "CRITICAL,HIGH"
-
-      - name: Scan docker-compose config
-        uses: aquasecurity/trivy-action@0.35.0
-        with:
-          scan-type: config
-          scan-ref: docker-compose.yml
+          scan-ref: "."
           format: table
           exit-code: "1"
           severity: "CRITICAL,HIGH"
@@ -68,12 +41,6 @@ jobs:
       - name: Build agent container image
         run: docker build -t nanoclaw-agent:scan -f container/Dockerfile .
 
-      - name: Build WhatsApp gateway image
-        run: docker build -t nanoclaw-whatsapp:scan -f services/whatsapp-gateway/Dockerfile ./services/whatsapp-gateway
-
-      - name: Build agent-runner image
-        run: docker build -t nanoclaw-runner:scan -f services/agent-runner/Dockerfile ./services/agent-runner
-
       - name: Trivy scan — agent container
         uses: aquasecurity/trivy-action@0.35.0
         with:
@@ -84,6 +51,9 @@ jobs:
           severity: "CRITICAL,HIGH"
           trivyignores: ".trivyignore"
 
+      - name: Build WhatsApp gateway image
+        run: docker build -t nanoclaw-whatsapp:scan -f services/whatsapp-gateway/Dockerfile ./services/whatsapp-gateway
+
       - name: Trivy scan — WhatsApp gateway
         uses: aquasecurity/trivy-action@0.35.0
         with:
@@ -93,6 +63,9 @@ jobs:
           ignore-unfixed: true
           severity: "CRITICAL,HIGH"
           trivyignores: ".trivyignore"
+
+      - name: Build agent-runner image
+        run: docker build -t nanoclaw-runner:scan -f services/agent-runner/Dockerfile ./services/agent-runner
 
       - name: Trivy scan — agent runner
         uses: aquasecurity/trivy-action@0.35.0

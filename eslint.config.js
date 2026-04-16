@@ -19,6 +19,6 @@ export default tseslint.config(
     },
   },
   {
-    ignores: ["dist/", "node_modules/", "container/agent-runner/", "groups/"],
+    ignores: ["dist/", "node_modules/", "container/agent-runner/", "services/", "groups/"],
   },
 );
