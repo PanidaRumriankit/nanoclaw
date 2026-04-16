@@ -24,6 +24,7 @@ RUN npm prune --omit=dev && rm -rf src/ node_modules/.cache
 
 EXPOSE 4005
 
+# trivy:ignore:DS0002 — agent-runner needs root for Docker socket access
 USER root
 
 CMD ["node", "dist/index.js"]
