@@ -62,4 +62,8 @@ jobs:
         run: npm ci
 
       - name: Check formatting
-        run: npm run format:check
+        run: |
+          echo "Prettier version: $(npx prettier --version)"
+          echo "Files being checked:"
+          npx prettier --list-different "src/**/*.ts" || true
+          npm run format:check
