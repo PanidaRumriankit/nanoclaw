@@ -1,2 +1,15 @@
 # False positive - Windows-only vulnerability, not applicable to Linux container
 CVE-2025-15558
+
+# Trivy's own Go binary vulnerabilities (not our app code)
+CVE-2026-33671
+CVE-2026-34040
+CVE-2026-34986
+CVE-2026-4660
+CVE-2026-33747
+CVE-2026-33748
+CVE-2026-39883
+CVE-2026-33186
+CVE-2026-25679
+CVE-2026-32280
+CVE-2026-32282
