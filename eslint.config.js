@@ -19,6 +19,22 @@ export default tseslint.config(
     },
   },
   {
-    ignores: ["dist/", "node_modules/", "container/agent-runner/", "services/", "groups/"],
+    ignores: [
+      "dist/",
+      "node_modules/",
+      "container/agent-runner/",
+      "container/skills/",
+      "services/",
+      "groups/",
+      "data/",
+      "setup/",
+      "scripts/",
+      "tests/",
+      "contracts/",
+      "observability/",
+      ".claude/",
+      "eslint.config.js",
+      "*.config.ts",
+    ],
   },
 );
