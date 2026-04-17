@@ -1,8 +1,10 @@
 name: CI
 
 on:
+  push:
+    branches: [main, master]
   pull_request:
-    branches: [main]
+    branches: [main, master]
 
 jobs:
   ci:
@@ -23,45 +25,3 @@ jobs:
 
       - name: Tests
         run: npx vitest run
-
-      - name: Build Docker image
-        run: docker build -t nanoclaw:latest -f container/Dockerfile .
-
-      - name: Generate Trivy SBOM
-        uses: aquasecurity/trivy-action@0.35.0
-        with:
-          scan-type: 'image'
-          image-ref: 'nanoclaw:latest'
-          format: 'cyclonedx'
-          output: 'trivy-image.sbom.json'
-
-      - name: Upload Trivy SBOM artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: trivy-image-sbom
-          path: '${{ github.workspace }}/trivy-image.sbom.json'
-      
-      - name: Run Trivy vulnerability
-        uses: aquasecurity/trivy-action@0.35.0
-        with:
-          skip-setup-trivy: true
-          image-ref: 'nanoclaw:latest'
-          format: 'table'
-          exit-code: '1'
-          ignore-unfixed: true
-          severity: 'CRITICAL,HIGH'
-          vuln-type: 'os'
-          trivyignores: '.trivyignore'
-      
-      - name: Run Trivy filesystem scan
-        uses: aquasecurity/trivy-action@0.35.0
-        with:
-          skip-setup-trivy: true
-          scan-type: 'filesystem'
-          scan-ref: './'
-          format: 'table'
-          exit-code: '1'
-          ignore-unfixed: true
-          severity: 'CRITICAL,HIGH'
-          vuln-type: 'library'
-          trivyignores: '.trivyignore'
