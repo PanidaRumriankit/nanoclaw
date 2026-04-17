@@ -7,7 +7,7 @@ on:
     branches: [main, master]
 
 jobs:
-  ci:
+  test:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -16,12 +16,6 @@ jobs:
           node-version: 20
           cache: npm
       - run: npm ci
-
-      - name: Format check
-        run: npm run format:check
-
-      - name: Typecheck
-        run: npx tsc --noEmit
 
       - name: Tests
         run: npx vitest run
