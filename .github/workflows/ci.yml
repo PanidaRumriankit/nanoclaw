@@ -17,5 +17,8 @@ jobs:
           cache: npm
       - run: npm ci
 
+      - name: Dependency vulnerability audit
+        run: npm audit --audit-level=high
+
       - name: Tests
         run: npx vitest run
