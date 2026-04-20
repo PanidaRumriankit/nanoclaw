@@ -32,5 +32,13 @@ limits_config:
   per_stream_rate_limit_burst: 20MB
   unordered_writes: true
 
+compactor:
+  working_directory: /loki/compactor
+  compaction_interval: 10m
+  retention_enabled: true
+  retention_delete_delay: 2h
+  retention_delete_worker_count: 150
+  delete_request_store: filesystem
+
 analytics:
   reporting_enabled: false
