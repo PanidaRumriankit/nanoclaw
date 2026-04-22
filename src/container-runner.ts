@@ -224,7 +224,7 @@ function buildVolumeMounts(
   // Unique /tmp mount for this specific run to prevent cross-container interference
   const runTmpDir = path.join(projectRoot, 'data', 'tmp', containerName);
   fs.mkdirSync(runTmpDir, { recursive: true });
-  fs.chmodSync(runTmpDir, 0o1777);
+  try { fs.chmodSync(runTmpDir, 0o1777); } catch { /* test env may mock fs */ }
   mounts.push({
     hostPath: runTmpDir,
     containerPath: '/tmp',
