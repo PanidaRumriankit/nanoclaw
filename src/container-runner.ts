@@ -196,8 +196,14 @@ function buildVolumeMounts(
     group.folder,
     'agent-runner-src',
   );
-  if (!fs.existsSync(groupAgentRunnerDir) && fs.existsSync(agentRunnerSrc)) {
-    fs.cpSync(agentRunnerSrc, groupAgentRunnerDir, { recursive: true });
+  // Ensure agent-runner source is in sync with host version.
+  if (fs.existsSync(agentRunnerSrc)) {
+    // We always sync to ensure core tools and security fixes (like register_group metrics)
+    // are up to date across all group containers.
+    fs.cpSync(agentRunnerSrc, groupAgentRunnerDir, {
+      recursive: true,
+      force: true,
+    });
   }
   mounts.push({
     hostPath: groupAgentRunnerDir,
@@ -218,6 +224,7 @@ function buildVolumeMounts(
   // Unique /tmp mount for this specific run to prevent cross-container interference
   const runTmpDir = path.join(projectRoot, 'data', 'tmp', containerName);
   fs.mkdirSync(runTmpDir, { recursive: true });
+  fs.chmodSync(runTmpDir, 0o1777);
   mounts.push({
     hostPath: runTmpDir,
     containerPath: '/tmp',
